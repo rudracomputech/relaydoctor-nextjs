@@ -1,5 +1,6 @@
+'use client'
 
-
+import { signOut } from 'next-auth/react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface SignOutDialogProps {
@@ -8,11 +9,8 @@ interface SignOutDialogProps {
 }
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
-
-
-
-  const handleSignOut = () => {
-  
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/auth/sign-in' })
   }
 
   return (
