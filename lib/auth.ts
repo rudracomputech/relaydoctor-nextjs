@@ -22,16 +22,14 @@ export const authOptions = {
         try {
           await connectToDatabase()
 
-          const user = await User.findOne({ email: email.toLowerCase().trim() })
-          if (!user) {
+          const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password')
+          if (!user || !user.password) {
             return null
           }
 
-          if (user.password) {
-            const isValid = await bcrypt.compare(password, user.password)
-            if (!isValid) {
-              return null
-            }
+          const isValid = await bcrypt.compare(password, user.password)
+          if (!isValid) {
+            return null
           }
 
           return {
