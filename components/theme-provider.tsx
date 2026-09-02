@@ -1,12 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
+import { ThemeProvider as NextThemesProvider, useTheme, type ThemeProviderProps } from "next-themes"
 
 function ThemeProvider({
   children,
   ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
+}: ThemeProviderProps) {
   return (
     <NextThemesProvider
       attribute="class"
@@ -47,7 +47,7 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      if (event.key?.toLowerCase() !== "d") {
         return
       }
 
@@ -67,5 +67,4 @@ function ThemeHotkey() {
 
   return null
 }
-
-export { ThemeProvider }
+export { ThemeProvider, useTheme }
