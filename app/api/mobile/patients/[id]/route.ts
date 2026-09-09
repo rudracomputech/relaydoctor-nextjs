@@ -9,7 +9,9 @@ export async function GET(req: Request, context: any) {
     const { id } = params;
 
     await connectToDatabase();
-    const patient = await Patient.findById(id);
+    const patient = await Patient.findById(id)
+      .populate('doctorId', 'name specialization hospital avatar')
+      .populate('registeredBy', 'name specialization hospital avatar');
     if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }

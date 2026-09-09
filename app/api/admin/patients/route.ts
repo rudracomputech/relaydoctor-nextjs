@@ -50,15 +50,23 @@ export async function POST(req: Request) {
     const body = await req.json()
     const {
       name,
+      patientId,
+      avatar,
       phone,
       age,
       gender,
+      bloodGroup,
+      condition,
+      allergies,
+      caseStatus,
       registeredBy,
       medicalHistory,
+      medicalHistoryTags,
       diagnosis,
       prescription,
       address,
       emergencyContact,
+      reports,
     } = body
 
     if (!name || !phone) {
@@ -68,24 +76,38 @@ export async function POST(req: Request) {
     await connectToDatabase()
 
     const newPatient = await Patient.create({
+      patientId: patientId || undefined,
+      avatar: avatar || '',
       name: name.trim(),
       phone: phone.trim(),
       mobile: phone.trim(),
       age: Number(age) || 30,
       gender: gender || 'male',
+      bloodGroup: bloodGroup || 'B+',
+      condition: condition || medicalHistory || '',
+      allergies: allergies || 'None',
+      caseStatus: caseStatus || 'Under Treatment',
       registeredBy: registeredBy || null,
       doctorId: registeredBy || null,
-      medicalHistory: medicalHistory || '',
-      problem: medicalHistory || '',
+      medicalHistory: medicalHistory || condition || '',
+      medicalHistoryTags: Array.isArray(medicalHistoryTags) ? medicalHistoryTags : [],
+      problem: condition || medicalHistory || '',
       diagnosis: diagnosis || '',
       prescription: prescription || '',
       address: address || '',
       emergencyContact: emergencyContact || '',
+      reports: Array.isArray(reports) && reports.length > 0 ? reports : [
+        { name: 'Reports & Documents', url: '#', fileType: 'pdf' },
+        { name: 'ECG Report.pdf', url: '#', fileType: 'pdf' },
+        { name: 'Blood Test.jpg', url: '#', fileType: 'image' },
+        { name: 'Prescriptions.pdf', url: '#', fileType: 'pdf' },
+      ],
       visitDate: new Date(),
     })
 
     const populated = (await Patient.findById(newPatient._id)
       .populate('registeredBy', 'name specialization hospital')
+      .populate('doctorId', 'name specialization hospital')
       .lean()) as any
 
     return NextResponse.json({

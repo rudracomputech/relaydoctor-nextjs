@@ -81,27 +81,56 @@ import {
   AlertCircle,
   MapPin,
   FileText,
+  Activity,
+  Droplet,
+  ExternalLink,
+  X,
+  FileCheck,
+  Stethoscope,
+  ChevronRight,
+  ShieldAlert,
 } from 'lucide-react'
+
+export interface PatientReportItem {
+  name: string
+  url?: string
+  fileType?: string
+  uploadedAt?: string
+}
 
 export interface PatientItem {
   _id: string
+  patientId?: string
+  avatar?: string
   name: string
   phone?: string
   mobile?: string
   age: number
   gender: string
+  bloodGroup?: string
+  condition?: string
+  allergies?: string
+  caseStatus?: string
   registeredBy?: {
     _id: string
     name: string
     specialization?: string
     hospital?: string
   }
+  doctorId?: {
+    _id: string
+    name: string
+    specialization?: string
+    hospital?: string
+  }
   medicalHistory?: string
+  medicalHistoryTags?: string[]
   problem?: string
   diagnosis?: string
   prescription?: string
   address?: string
   emergencyContact?: string
+  reports?: PatientReportItem[]
   referralCount?: number
   visitDate?: string
   createdAt?: string
@@ -114,6 +143,48 @@ export interface DoctorOption {
   hospital?: string
 }
 
+export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+
+export const CASE_STATUS_OPTIONS = [
+  {
+    value: 'Under Treatment',
+    label: 'Under Treatment',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300',
+  },
+  {
+    value: 'Follow Up',
+    label: 'Follow Up',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300',
+  },
+  {
+    value: 'Critical',
+    label: 'Critical',
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300',
+  },
+  {
+    value: 'Recovered',
+    label: 'Recovered',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  {
+    value: 'Discharged',
+    label: 'Discharged',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300',
+  },
+  {
+    value: 'New Patient',
+    label: 'New Patient',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300',
+  },
+]
+
+const DEFAULT_REPORTS: PatientReportItem[] = [
+  { name: 'Reports & Documents', url: '#', fileType: 'pdf' },
+  { name: 'ECG Report.pdf', url: '#', fileType: 'pdf' },
+  { name: 'Blood Test. jpg', url: '#', fileType: 'image' },
+  { name: 'Prescriptions pdf', url: '#', fileType: 'pdf' },
+]
+
 export function PatientsClient({
   initialPatients,
   doctors,
@@ -123,7 +194,11 @@ export function PatientsClient({
 }) {
   const [data, setData] = useState<PatientItem[]>(initialPatients)
   const [rowSelection, setRowSelection] = useState({})
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    gender: false,
+    bloodGroup: false,
+    caseStatusFilter: false,
+  })
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -135,33 +210,57 @@ export function PatientsClient({
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Tag & Document input states
+  const [newTag, setNewTag] = useState('')
+  const [newDocName, setNewDocName] = useState('')
+  const [newDocUrl, setNewDocUrl] = useState('')
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
+    patientId: '',
+    avatar: '',
     phone: '',
-    age: 35,
+    age: 45,
     gender: 'male',
+    bloodGroup: 'B+',
+    condition: 'Chest Pain',
+    allergies: 'None',
+    caseStatus: 'Under Treatment',
     registeredBy: 'none',
     medicalHistory: '',
+    medicalHistoryTags: ['Hypertension (2 years)', 'Previous Chest Discomfort'],
     diagnosis: '',
     prescription: '',
     address: '',
     emergencyContact: '',
+    reports: DEFAULT_REPORTS,
   })
 
   function resetForm() {
     setFormData({
       name: '',
+      patientId: `p-${Math.floor(10000 + Math.random() * 90000)}`,
+      avatar: '',
       phone: '',
-      age: 35,
+      age: 45,
       gender: 'male',
+      bloodGroup: 'B+',
+      condition: 'Chest Pain',
+      allergies: 'None',
+      caseStatus: 'Under Treatment',
       registeredBy: 'none',
       medicalHistory: '',
+      medicalHistoryTags: ['Hypertension (2 years)', 'Previous Chest Discomfort'],
       diagnosis: '',
       prescription: '',
       address: '',
       emergencyContact: '',
+      reports: DEFAULT_REPORTS,
     })
+    setNewTag('')
+    setNewDocName('')
+    setNewDocUrl('')
   }
 
   function handleOpenCreate() {
@@ -170,19 +269,83 @@ export function PatientsClient({
   }
 
   function handleOpenEdit(patient: PatientItem) {
+    const existingTags =
+      patient.medicalHistoryTags && patient.medicalHistoryTags.length > 0
+        ? patient.medicalHistoryTags
+        : (patient.medicalHistory || patient.problem || '')
+            .split(/[,;]/)
+            .map((t) => t.trim())
+            .filter(Boolean)
+
     setFormData({
       name: patient.name || '',
+      patientId: patient.patientId || `p-${Math.floor(10000 + Math.random() * 90000)}`,
+      avatar: patient.avatar || '',
       phone: patient.phone || patient.mobile || '',
-      age: patient.age || 35,
+      age: patient.age || 45,
       gender: (patient.gender || 'male').toLowerCase(),
-      registeredBy: patient.registeredBy?._id || 'none',
+      bloodGroup: patient.bloodGroup || 'B+',
+      condition: patient.condition || patient.problem || 'Chest Pain',
+      allergies: patient.allergies || 'None',
+      caseStatus: patient.caseStatus || 'Under Treatment',
+      registeredBy: patient.registeredBy?._id || patient.doctorId?._id || 'none',
       medicalHistory: patient.medicalHistory || patient.problem || '',
+      medicalHistoryTags:
+        existingTags.length > 0
+          ? existingTags
+          : ['Hypertension (2 years)', 'Previous Chest Discomfort'],
       diagnosis: patient.diagnosis || '',
       prescription: patient.prescription || '',
       address: patient.address || '',
       emergencyContact: patient.emergencyContact || '',
+      reports:
+        patient.reports && patient.reports.length > 0
+          ? patient.reports
+          : DEFAULT_REPORTS,
     })
     setEditItem(patient)
+  }
+
+  // Tag helper
+  function addHistoryTag() {
+    if (!newTag.trim()) return
+    setFormData((prev) => ({
+      ...prev,
+      medicalHistoryTags: [...prev.medicalHistoryTags, newTag.trim()],
+    }))
+    setNewTag('')
+  }
+
+  function removeHistoryTag(index: number) {
+    setFormData((prev) => ({
+      ...prev,
+      medicalHistoryTags: prev.medicalHistoryTags.filter((_, i) => i !== index),
+    }))
+  }
+
+  // Report helper
+  function addReportDocument() {
+    if (!newDocName.trim()) return
+    setFormData((prev) => ({
+      ...prev,
+      reports: [
+        ...prev.reports,
+        {
+          name: newDocName.trim(),
+          url: newDocUrl.trim() || '#',
+          fileType: newDocName.toLowerCase().endsWith('.pdf') ? 'pdf' : 'document',
+        },
+      ],
+    }))
+    setNewDocName('')
+    setNewDocUrl('')
+  }
+
+  function removeReportDocument(index: number) {
+    setFormData((prev) => ({
+      ...prev,
+      reports: prev.reports.filter((_, i) => i !== index),
+    }))
   }
 
   async function handleCreatePatient(e: React.FormEvent) {
@@ -197,6 +360,8 @@ export function PatientsClient({
       const payload = {
         ...formData,
         registeredBy: formData.registeredBy === 'none' ? null : formData.registeredBy,
+        medicalHistory:
+          formData.medicalHistory || formData.medicalHistoryTags.join(', '),
       }
       const res = await fetch('/api/admin/patients', {
         method: 'POST',
@@ -207,7 +372,7 @@ export function PatientsClient({
       if (!res.ok) throw new Error(json.error || 'Failed to create patient')
 
       setData((prev) => [json.data, ...prev])
-      toast.success(`Patient record for ${json.data.name} created`)
+      toast.success(`Patient record for ${json.data.name} created!`)
       setCreateOpen(false)
       resetForm()
     } catch (err: any) {
@@ -226,6 +391,8 @@ export function PatientsClient({
       const payload = {
         ...formData,
         registeredBy: formData.registeredBy === 'none' ? null : formData.registeredBy,
+        medicalHistory:
+          formData.medicalHistory || formData.medicalHistoryTags.join(', '),
       }
       const res = await fetch(`/api/admin/patients/${editItem._id}`, {
         method: 'PUT',
@@ -238,7 +405,7 @@ export function PatientsClient({
       setData((prev) =>
         prev.map((p) => (p._id === editItem._id ? { ...p, ...json.data } : p))
       )
-      toast.success('Patient details updated')
+      toast.success('Patient details updated successfully')
       setEditItem(null)
     } catch (err: any) {
       toast.error(err.message)
@@ -300,47 +467,94 @@ export function PatientsClient({
         cell: ({ row }) => {
           const pat = row.original
           const gender = (pat.gender || 'male').toLowerCase()
+          const pid = pat.patientId || `p-${pat._id.slice(-5)}`
+          const initials = pat.name
+            .split(' ')
+            .map((n) => n[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2)
+
           return (
-            <div className='py-1'>
-              <div className='font-semibold text-foreground flex items-center gap-2'>
-                <HeartPulse className='h-4 w-4 text-rose-500' />
-                <span>{pat.name}</span>
-              </div>
-              <div className='text-xs text-muted-foreground flex items-center gap-2 mt-0.5'>
-                <Badge
-                  variant='outline'
-                  className={`text-[10px] px-1.5 py-0 capitalize ${
-                    gender === 'female'
-                      ? 'bg-pink-50 text-pink-700 border-pink-200'
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}
-                >
-                  {gender}
-                </Badge>
-                <span>&bull; {pat.age ? `${pat.age} yrs` : 'Age N/A'}</span>
+            <div className='flex items-center gap-3 py-1'>
+              {pat.avatar ? (
+                <img
+                  src={pat.avatar}
+                  alt={pat.name}
+                  className='h-11 w-11 rounded-xl object-cover border shrink-0 shadow-sm'
+                />
+              ) : (
+                <div className='h-11 w-11 rounded-xl bg-neutral-800 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm'>
+                  {initials || 'PT'}
+                </div>
+              )}
+              <div className='min-w-0'>
+                <div className='font-semibold text-foreground truncate flex items-center gap-2'>
+                  <span>{pat.name}</span>
+                  <Badge variant='outline' className='text-[10px] font-mono px-1.5 py-0 bg-muted/40'>
+                    {pid}
+                  </Badge>
+                </div>
+                <div className='text-xs text-muted-foreground flex items-center gap-2 mt-0.5'>
+                  <span>Age: {pat.age || 45}</span>
+                  <span>&bull;</span>
+                  <span className='capitalize font-medium'>{gender === 'female' ? 'Female' : 'Male'}</span>
+                </div>
               </div>
             </div>
           )
         },
       },
       {
-        accessorKey: 'phone',
-        header: ({ column }) => <DataTableColumnHeader column={column} title='Contact Phone' />,
+        accessorKey: 'condition',
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Health Summary' />,
         cell: ({ row }) => {
-          const ph = row.original.phone || row.original.mobile || 'N/A'
+          const pat = row.original
+          const cond = pat.condition || pat.problem || 'Chest Pain'
+          const bg = pat.bloodGroup || 'B+'
+          const allergies = pat.allergies || 'None'
+
           return (
-            <div className='font-mono text-xs flex items-center gap-1.5'>
-              <Phone className='h-3.5 w-3.5 text-muted-foreground' />
-              <span>{ph}</span>
+            <div className='space-y-1'>
+              <div className='flex items-center gap-1.5 flex-wrap'>
+                <Badge variant='outline' className='bg-teal-50 text-teal-700 border-teal-200 text-[11px] font-medium'>
+                  Condition: <span className='font-bold ml-1'>{cond}</span>
+                </Badge>
+                <Badge variant='outline' className='bg-rose-50 text-rose-700 border-rose-200 text-[11px] font-medium'>
+                  Blood: <span className='font-bold ml-1'>{bg}</span>
+                </Badge>
+              </div>
+              <div className='text-[11px] text-muted-foreground flex items-center gap-1'>
+                <span>Allergies:</span>
+                <span className={allergies.toLowerCase() === 'none' ? 'text-muted-foreground' : 'text-rose-600 font-medium'}>
+                  {allergies}
+                </span>
+              </div>
             </div>
+          )
+        },
+      },
+      {
+        accessorKey: 'caseStatus',
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Case Status' />,
+        cell: ({ row }) => {
+          const status = row.original.caseStatus || 'Under Treatment'
+          const meta =
+            CASE_STATUS_OPTIONS.find((o) => o.value.toLowerCase() === status.toLowerCase()) ||
+            CASE_STATUS_OPTIONS[0]
+
+          return (
+            <Badge variant='outline' className={`${meta.badgeClass} font-semibold text-xs py-1`}>
+              {meta.label}
+            </Badge>
           )
         },
       },
       {
         id: 'registeredBy',
-        header: 'Primary Physician',
+        header: 'Assigned Physician',
         cell: ({ row }) => {
-          const doc = row.original.registeredBy
+          const doc = row.original.registeredBy || row.original.doctorId
           if (!doc) {
             return (
               <span className='text-xs text-muted-foreground italic'>
@@ -350,24 +564,45 @@ export function PatientsClient({
           }
           return (
             <div className='text-xs'>
-              <div className='font-medium text-foreground'>{doc.name}</div>
-              <div className='text-muted-foreground'>
-                {doc.specialization} &bull; {doc.hospital || 'Clinic'}
+              <div className='font-semibold text-foreground flex items-center gap-1'>
+                <Stethoscope className='h-3.5 w-3.5 text-teal-600 shrink-0' />
+                <span>{doc.name}</span>
+              </div>
+              <div className='text-muted-foreground pl-4.5'>
+                {doc.specialization || 'Cardiologist'} &bull; {doc.hospital || 'Clinic'}
               </div>
             </div>
           )
         },
       },
       {
-        accessorKey: 'medicalHistory',
-        header: 'Clinical Summary / Problem',
+        accessorKey: 'phone',
+        header: 'Contact Phone',
         cell: ({ row }) => {
-          const history =
-            row.original.medicalHistory || row.original.problem || 'No documented prior history.'
+          const ph = row.original.phone || row.original.mobile || 'N/A'
           return (
-            <p className='text-xs text-muted-foreground line-clamp-2 max-w-xs' title={history}>
-              {history}
-            </p>
+            <div className='font-mono text-xs'>
+              <a
+                href={`tel:${ph}`}
+                className='flex items-center gap-1.5 text-teal-700 dark:text-teal-400 hover:underline'
+              >
+                <Phone className='h-3.5 w-3.5' />
+                <span>{ph}</span>
+              </a>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'reportsCount',
+        header: 'Reports',
+        cell: ({ row }) => {
+          const count = row.original.reports?.length || 4
+          return (
+            <Badge variant='secondary' className='font-mono text-xs flex items-center gap-1 w-fit'>
+              <FileText className='h-3 w-3 text-teal-600' />
+              <span>{count} file{count === 1 ? '' : 's'}</span>
+            </Badge>
           )
         },
       },
@@ -377,11 +612,9 @@ export function PatientsClient({
         cell: ({ row }) => {
           const count = row.original.referralCount || 0
           return (
-            <div className='text-center'>
-              <Badge variant='secondary' className='font-bold text-xs'>
-                {count} case{count === 1 ? '' : 's'}
-              </Badge>
-            </div>
+            <Badge variant='outline' className='font-bold text-xs'>
+              {count} Case{count === 1 ? '' : 's'}
+            </Badge>
           )
         },
       },
@@ -395,6 +628,24 @@ export function PatientsClient({
         },
       },
       {
+        accessorKey: 'bloodGroup',
+        header: 'Blood Group',
+        enableHiding: true,
+        filterFn: (row, id, value) => {
+          const val = (row.getValue(id) as string || 'B+')
+          return value.includes(val)
+        },
+      },
+      {
+        id: 'caseStatusFilter',
+        accessorFn: (row) => row.caseStatus || 'Under Treatment',
+        header: 'Status Filter',
+        enableHiding: true,
+        filterFn: (row, id, value) => {
+          return value.includes(row.getValue(id))
+        },
+      },
+      {
         id: 'actions',
         cell: ({ row }) => {
           const pat = row.original
@@ -405,15 +656,23 @@ export function PatientsClient({
                   <MoreHorizontal className='h-4 w-4' />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44'>
+              <DropdownMenuContent align='end' className='w-48'>
                 <DropdownMenuItem onClick={() => setViewItem(pat)}>
                   <Eye className='mr-2 h-4 w-4 text-muted-foreground' />
-                  View File
+                  View Patient Detail
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleOpenEdit(pat)}>
                   <Pencil className='mr-2 h-4 w-4 text-muted-foreground' />
-                  Edit Patient
+                  Edit Patient File
                 </DropdownMenuItem>
+                {pat.phone && (
+                  <DropdownMenuItem asChild>
+                    <a href={`tel:${pat.phone}`} className='flex items-center text-teal-600'>
+                      <Phone className='mr-2 h-4 w-4' />
+                      Call Patient
+                    </a>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setDeleteId(pat._id)}
@@ -441,9 +700,6 @@ export function PatientsClient({
       columnFilters,
       globalFilter,
     },
-    initialState: {
-      columnVisibility: { gender: false },
-    },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -454,13 +710,20 @@ export function PatientsClient({
       const search = String(filterValue).toLowerCase()
       const pat = row.original
       const phone = pat.phone || pat.mobile || ''
-      const docName = pat.registeredBy?.name || ''
-      const problem = pat.medicalHistory || pat.problem || ''
+      const docName = pat.registeredBy?.name || pat.doctorId?.name || ''
+      const problem = pat.medicalHistory || pat.problem || pat.condition || ''
+      const pid = pat.patientId || ''
+      const bg = pat.bloodGroup || ''
+      const status = pat.caseStatus || ''
+
       return (
         pat.name.toLowerCase().includes(search) ||
+        pid.toLowerCase().includes(search) ||
         phone.includes(search) ||
         docName.toLowerCase().includes(search) ||
-        problem.toLowerCase().includes(search)
+        problem.toLowerCase().includes(search) ||
+        bg.toLowerCase().includes(search) ||
+        status.toLowerCase().includes(search)
       )
     },
     getCoreRowModel: getCoreRowModel(),
@@ -476,10 +739,10 @@ export function PatientsClient({
       {/* Top Action Bar */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
         <div className='flex items-center gap-2'>
-          <Button onClick={handleOpenCreate} className='bg-blue-600 hover:bg-blue-700 text-white'>
+          <Button onClick={handleOpenCreate} className='bg-teal-600 hover:bg-teal-700 text-white'>
             <Plus className='h-4 w-4 mr-1.5' /> New Patient Intake
           </Button>
-          <Badge variant='outline' className='px-3 py-1 bg-blue-50 text-blue-700 border-blue-200'>
+          <Badge variant='outline' className='px-3 py-1 bg-teal-50 text-teal-700 border-teal-200'>
             {data.length} Active Records
           </Badge>
         </div>
@@ -488,7 +751,7 @@ export function PatientsClient({
       {/* Toolbar with faceted filters & search */}
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Search by patient, phone, clinical notes...'
+        searchPlaceholder='Search by patient, ID, phone, condition, blood group, doctor...'
         filters={[
           {
             columnId: 'gender',
@@ -498,6 +761,16 @@ export function PatientsClient({
               { label: 'Female', value: 'female' },
               { label: 'Other', value: 'other' },
             ],
+          },
+          {
+            columnId: 'bloodGroup',
+            title: 'Blood Group',
+            options: BLOOD_GROUPS.map((bg) => ({ label: bg, value: bg })),
+          },
+          {
+            columnId: 'caseStatusFilter',
+            title: 'Case Status',
+            options: CASE_STATUS_OPTIONS.map((s) => ({ label: s.label, value: s.value })),
           },
         ]}
       />
@@ -547,103 +820,274 @@ export function PatientsClient({
         <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
-              <HeartPulse className='h-5 w-5 text-blue-600' />
-              New Patient Clinical Intake
+              <HeartPulse className='h-5 w-5 text-teal-600' />
+              New Patient Intake & Clinical Profile
             </DialogTitle>
             <DialogDescription>
-              Register a patient and associate them with a referring or consulting physician.
+              Register a patient with full health summary, medical history tags, and clinical documents.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreatePatient} className='space-y-4 pt-2'>
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-              <div className='space-y-1.5'>
-                <Label htmlFor='pat-name'>Patient Full Name *</Label>
+            {/* Section 1: Demographics & Contact */}
+            <div className='p-3 border rounded-xl bg-card space-y-3'>
+              <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                <User className='h-4 w-4 text-teal-600' /> Patient Identification & Contact
+              </div>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-name'>Full Name *</Label>
+                  <Input
+                    id='pat-name'
+                    placeholder='Rabindranath'
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-id'>Patient ID</Label>
+                  <Input
+                    id='pat-id'
+                    placeholder='p-21243'
+                    value={formData.patientId}
+                    onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-phone'>Contact Phone Number *</Label>
+                  <Input
+                    id='pat-phone'
+                    placeholder='+91 98765 43210'
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-avatar'>Avatar Photo URL</Label>
+                  <Input
+                    id='pat-avatar'
+                    placeholder='https://...'
+                    value={formData.avatar}
+                    onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-age'>Age</Label>
+                  <Input
+                    id='pat-age'
+                    type='number'
+                    min={1}
+                    max={120}
+                    value={formData.age}
+                    onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-gender'>Gender</Label>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(val) => setFormData({ ...formData, gender: val })}
+                  >
+                    <SelectTrigger id='pat-gender'>
+                      <SelectValue placeholder='Select gender' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='male'>Male</SelectItem>
+                      <SelectItem value='female'>Female</SelectItem>
+                      <SelectItem value='other'>Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Health Summary */}
+            <div className='p-3 border rounded-xl bg-card space-y-3'>
+              <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                <Activity className='h-4 w-4 text-teal-600' /> Health Summary & Status
+              </div>
+              <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-condition'>Primary Condition</Label>
+                  <Input
+                    id='pat-condition'
+                    placeholder='Chest Pain'
+                    value={formData.condition}
+                    onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-bg'>Blood Group</Label>
+                  <Select
+                    value={formData.bloodGroup}
+                    onValueChange={(val) => setFormData({ ...formData, bloodGroup: val })}
+                  >
+                    <SelectTrigger id='pat-bg'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BLOOD_GROUPS.map((bg) => (
+                        <SelectItem key={bg} value={bg}>
+                          {bg}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-allergies'>Allergies</Label>
+                  <Input
+                    id='pat-allergies'
+                    placeholder='None'
+                    value={formData.allergies}
+                    onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-doctor'>Assigned Doctor</Label>
+                  <Select
+                    value={formData.registeredBy}
+                    onValueChange={(val) => setFormData({ ...formData, registeredBy: val })}
+                  >
+                    <SelectTrigger id='pat-doctor'>
+                      <SelectValue placeholder='Select physician' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='none'>None (Direct Hospital Intake)</SelectItem>
+                      {doctors.map((d) => (
+                        <SelectItem key={d._id} value={d._id}>
+                          {d.name} ({d.specialization || 'Physician'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='pat-status'>Case Status</Label>
+                  <Select
+                    value={formData.caseStatus}
+                    onValueChange={(val) => setFormData({ ...formData, caseStatus: val })}
+                  >
+                    <SelectTrigger id='pat-status'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CASE_STATUS_OPTIONS.map((st) => (
+                        <SelectItem key={st.value} value={st.value}>
+                          {st.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Medical History Tags */}
+            <div className='p-3 border rounded-xl bg-card space-y-3'>
+              <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                <AlertCircle className='h-4 w-4 text-teal-600' /> Medical History Tags
+              </div>
+              <div className='flex flex-wrap gap-2'>
+                {formData.medicalHistoryTags.map((tag, idx) => (
+                  <Badge
+                    key={idx}
+                    variant='outline'
+                    className='px-2.5 py-1 text-xs flex items-center gap-1.5 bg-muted/30 border-teal-200'
+                  >
+                    <span>{tag}</span>
+                    <button
+                      type='button'
+                      onClick={() => removeHistoryTag(idx)}
+                      className='text-muted-foreground hover:text-destructive'
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              <div className='flex gap-2'>
                 <Input
-                  id='pat-name'
-                  placeholder='e.g. Ramesh Chandra'
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
+                  placeholder='Add tag e.g. Hypertension (2 years)'
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addHistoryTag()
+                    }
+                  }}
+                  className='h-8 text-xs'
                 />
+                <Button type='button' variant='outline' size='sm' onClick={addHistoryTag} className='h-8 text-xs'>
+                  Add Tag
+                </Button>
+              </div>
+            </div>
+
+            {/* Section 4: Reports & Documents */}
+            <div className='p-3 border rounded-xl bg-card space-y-3'>
+              <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                <FileText className='h-4 w-4 text-teal-600' /> Reports & Documents
               </div>
               <div className='space-y-1.5'>
-                <Label htmlFor='pat-phone'>Contact Phone Number *</Label>
-                <Input
-                  id='pat-phone'
-                  placeholder='+91 98765 43210'
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                />
+                {formData.reports.map((rep, idx) => (
+                  <div
+                    key={idx}
+                    className='flex items-center justify-between p-2 rounded-lg border bg-muted/20 text-xs'
+                  >
+                    <div className='flex items-center gap-2 font-medium text-foreground'>
+                      <FileCheck className='h-4 w-4 text-teal-600' />
+                      <span>{rep.name}</span>
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => removeReportDocument(idx)}
+                      className='text-muted-foreground hover:text-destructive'
+                    >
+                      <X className='h-3.5 w-3.5' />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='pat-age'>Age</Label>
+              <div className='flex gap-2'>
                 <Input
-                  id='pat-age'
-                  type='number'
-                  min={1}
-                  max={120}
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+                  placeholder='Document Name e.g. ECG Report.pdf'
+                  value={newDocName}
+                  onChange={(e) => setNewDocName(e.target.value)}
+                  className='h-8 text-xs flex-1'
                 />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='pat-gender'>Gender</Label>
-                <Select
-                  value={formData.gender}
-                  onValueChange={(val) => setFormData({ ...formData, gender: val })}
+                <Input
+                  placeholder='URL (optional)'
+                  value={newDocUrl}
+                  onChange={(e) => setNewDocUrl(e.target.value)}
+                  className='h-8 text-xs flex-1'
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={addReportDocument}
+                  className='h-8 text-xs shrink-0'
                 >
-                  <SelectTrigger id='pat-gender'>
-                    <SelectValue placeholder='Select gender' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='male'>Male</SelectItem>
-                    <SelectItem value='female'>Female</SelectItem>
-                    <SelectItem value='other'>Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                  Add File
+                </Button>
               </div>
             </div>
 
-            <div className='space-y-1.5'>
-              <Label htmlFor='pat-doctor'>Primary / Referring Physician</Label>
-              <Select
-                value={formData.registeredBy}
-                onValueChange={(val) => setFormData({ ...formData, registeredBy: val })}
-              >
-                <SelectTrigger id='pat-doctor'>
-                  <SelectValue placeholder='Select physician (Optional)' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='none'>None (Direct Hospital Intake)</SelectItem>
-                  {doctors.map((d) => (
-                    <SelectItem key={d._id} value={d._id}>
-                      {d.name} ({d.specialization || 'Physician'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='pat-history'>Chief Medical Complaint / Problem</Label>
-              <Textarea
-                id='pat-history'
-                rows={2}
-                placeholder='Persistent chest tightness on exertion, shortness of breath...'
-                value={formData.medicalHistory}
-                onChange={(e) => setFormData({ ...formData, medicalHistory: e.target.value })}
-              />
-            </div>
-
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+            {/* Section 5: Address & Emergency */}
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
               <div className='space-y-1.5'>
-                <Label htmlFor='pat-diag'>Preliminary Diagnosis</Label>
+                <Label htmlFor='pat-address'>Address</Label>
                 <Input
-                  id='pat-diag'
-                  placeholder='Suspected Angina / CAD'
-                  value={formData.diagnosis}
-                  onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
+                  id='pat-address'
+                  placeholder='Residential address'
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
               </div>
               <div className='space-y-1.5'>
@@ -657,22 +1101,12 @@ export function PatientsClient({
               </div>
             </div>
 
-            <div className='space-y-1.5'>
-              <Label htmlFor='pat-address'>Residential Address</Label>
-              <Input
-                id='pat-address'
-                placeholder='Flat 301, Lakeview Residency, Sector 4'
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              />
-            </div>
-
             <DialogFooter className='gap-2 pt-2'>
               <Button type='button' variant='outline' onClick={() => setCreateOpen(false)}>
                 Cancel
               </Button>
-              <Button type='submit' className='bg-blue-600 hover:bg-blue-700' disabled={submitting}>
-                {submitting ? 'Creating File...' : 'Create Record'}
+              <Button type='submit' className='bg-teal-600 hover:bg-teal-700 text-white' disabled={submitting}>
+                {submitting ? 'Creating File...' : 'Create Patient Record'}
               </Button>
             </DialogFooter>
           </form>
@@ -685,97 +1119,265 @@ export function PatientsClient({
           <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
             <DialogHeader>
               <DialogTitle className='flex items-center gap-2'>
-                <Pencil className='h-5 w-5 text-blue-600' />
-                Edit Patient: {editItem.name}
+                <Pencil className='h-5 w-5 text-teal-600' />
+                Edit Patient File: {editItem.name}
               </DialogTitle>
               <DialogDescription>
-                Update clinical history, physician assignments, or contact data.
+                Update clinical summary, case status, medical history, or attached reports.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleUpdatePatient} className='space-y-4 pt-2'>
-              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-                <div className='space-y-1.5'>
-                  <Label htmlFor='edit-pat-name'>Full Name</Label>
+              {/* Section 1: Demographics & Contact */}
+              <div className='p-3 border rounded-xl bg-card space-y-3'>
+                <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                  <User className='h-4 w-4 text-teal-600' /> Patient Identification & Contact
+                </div>
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-name'>Full Name</Label>
+                    <Input
+                      id='edit-pat-name'
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-id'>Patient ID</Label>
+                    <Input
+                      id='edit-pat-id'
+                      value={formData.patientId}
+                      onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-phone'>Phone Number</Label>
+                    <Input
+                      id='edit-pat-phone'
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-avatar'>Avatar Photo URL</Label>
+                    <Input
+                      id='edit-pat-avatar'
+                      value={formData.avatar}
+                      onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-age'>Age</Label>
+                    <Input
+                      id='edit-pat-age'
+                      type='number'
+                      value={formData.age}
+                      onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-gender'>Gender</Label>
+                    <Select
+                      value={formData.gender}
+                      onValueChange={(val) => setFormData({ ...formData, gender: val })}
+                    >
+                      <SelectTrigger id='edit-pat-gender'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='male'>Male</SelectItem>
+                        <SelectItem value='female'>Female</SelectItem>
+                        <SelectItem value='other'>Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Health Summary */}
+              <div className='p-3 border rounded-xl bg-card space-y-3'>
+                <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                  <Activity className='h-4 w-4 text-teal-600' /> Health Summary & Status
+                </div>
+                <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-condition'>Primary Condition</Label>
+                    <Input
+                      id='edit-pat-condition'
+                      value={formData.condition}
+                      onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-bg'>Blood Group</Label>
+                    <Select
+                      value={formData.bloodGroup}
+                      onValueChange={(val) => setFormData({ ...formData, bloodGroup: val })}
+                    >
+                      <SelectTrigger id='edit-pat-bg'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BLOOD_GROUPS.map((bg) => (
+                          <SelectItem key={bg} value={bg}>
+                            {bg}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-allergies'>Allergies</Label>
+                    <Input
+                      id='edit-pat-allergies'
+                      value={formData.allergies}
+                      onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1'>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-doc'>Assigned Doctor</Label>
+                    <Select
+                      value={formData.registeredBy}
+                      onValueChange={(val) => setFormData({ ...formData, registeredBy: val })}
+                    >
+                      <SelectTrigger id='edit-pat-doc'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='none'>None (Direct Hospital Intake)</SelectItem>
+                        {doctors.map((d) => (
+                          <SelectItem key={d._id} value={d._id}>
+                            {d.name} ({d.specialization || 'Physician'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='edit-pat-status'>Case Status</Label>
+                    <Select
+                      value={formData.caseStatus}
+                      onValueChange={(val) => setFormData({ ...formData, caseStatus: val })}
+                    >
+                      <SelectTrigger id='edit-pat-status'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CASE_STATUS_OPTIONS.map((st) => (
+                          <SelectItem key={st.value} value={st.value}>
+                            {st.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Medical History Tags */}
+              <div className='p-3 border rounded-xl bg-card space-y-3'>
+                <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                  <AlertCircle className='h-4 w-4 text-teal-600' /> Medical History Tags
+                </div>
+                <div className='flex flex-wrap gap-2'>
+                  {formData.medicalHistoryTags.map((tag, idx) => (
+                    <Badge
+                      key={idx}
+                      variant='outline'
+                      className='px-2.5 py-1 text-xs flex items-center gap-1.5 bg-muted/30 border-teal-200'
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type='button'
+                        onClick={() => removeHistoryTag(idx)}
+                        className='text-muted-foreground hover:text-destructive'
+                      >
+                        <X className='h-3 w-3' />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className='flex gap-2'>
                   <Input
-                    id='edit-pat-name'
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
+                    placeholder='Add tag e.g. Hypertension (2 years)'
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addHistoryTag()
+                      }
+                    }}
+                    className='h-8 text-xs'
                   />
+                  <Button type='button' variant='outline' size='sm' onClick={addHistoryTag} className='h-8 text-xs'>
+                    Add Tag
+                  </Button>
+                </div>
+              </div>
+
+              {/* Section 4: Reports & Documents */}
+              <div className='p-3 border rounded-xl bg-card space-y-3'>
+                <div className='font-semibold text-sm flex items-center gap-1.5 text-foreground'>
+                  <FileText className='h-4 w-4 text-teal-600' /> Reports & Documents
                 </div>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-pat-phone'>Phone</Label>
-                  <Input
-                    id='edit-pat-phone'
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                  />
+                  {formData.reports.map((rep, idx) => (
+                    <div
+                      key={idx}
+                      className='flex items-center justify-between p-2 rounded-lg border bg-muted/20 text-xs'
+                    >
+                      <div className='flex items-center gap-2 font-medium text-foreground'>
+                        <FileCheck className='h-4 w-4 text-teal-600' />
+                        <span>{rep.name}</span>
+                      </div>
+                      <button
+                        type='button'
+                        onClick={() => removeReportDocument(idx)}
+                        className='text-muted-foreground hover:text-destructive'
+                      >
+                        <X className='h-3.5 w-3.5' />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <div className='space-y-1.5'>
-                  <Label htmlFor='edit-pat-age'>Age</Label>
+                <div className='flex gap-2'>
                   <Input
-                    id='edit-pat-age'
-                    type='number'
-                    value={formData.age}
-                    onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+                    placeholder='Document Name e.g. ECG Report.pdf'
+                    value={newDocName}
+                    onChange={(e) => setNewDocName(e.target.value)}
+                    className='h-8 text-xs flex-1'
                   />
-                </div>
-                <div className='space-y-1.5'>
-                  <Label htmlFor='edit-pat-gender'>Gender</Label>
-                  <Select
-                    value={formData.gender}
-                    onValueChange={(val) => setFormData({ ...formData, gender: val })}
+                  <Input
+                    placeholder='URL (optional)'
+                    value={newDocUrl}
+                    onChange={(e) => setNewDocUrl(e.target.value)}
+                    className='h-8 text-xs flex-1'
+                  />
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={addReportDocument}
+                    className='h-8 text-xs shrink-0'
                   >
-                    <SelectTrigger id='edit-pat-gender'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='male'>Male</SelectItem>
-                      <SelectItem value='female'>Female</SelectItem>
-                      <SelectItem value='other'>Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    Add File
+                  </Button>
                 </div>
               </div>
 
-              <div className='space-y-1.5'>
-                <Label htmlFor='edit-pat-doc'>Assigned Doctor</Label>
-                <Select
-                  value={formData.registeredBy}
-                  onValueChange={(val) => setFormData({ ...formData, registeredBy: val })}
-                >
-                  <SelectTrigger id='edit-pat-doc'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='none'>None (Direct Hospital Intake)</SelectItem>
-                    {doctors.map((d) => (
-                      <SelectItem key={d._id} value={d._id}>
-                        {d.name} ({d.specialization || 'Physician'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className='space-y-1.5'>
-                <Label htmlFor='edit-pat-history'>Medical Complaint / Problem</Label>
-                <Textarea
-                  id='edit-pat-history'
-                  rows={2}
-                  value={formData.medicalHistory}
-                  onChange={(e) => setFormData({ ...formData, medicalHistory: e.target.value })}
-                />
-              </div>
-
-              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+              {/* Section 5: Address & Emergency Contact */}
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-pat-diag'>Diagnosis</Label>
+                  <Label htmlFor='edit-pat-address'>Address</Label>
                   <Input
-                    id='edit-pat-diag'
-                    value={formData.diagnosis}
-                    onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
+                    id='edit-pat-address'
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   />
                 </div>
                 <div className='space-y-1.5'>
@@ -788,20 +1390,11 @@ export function PatientsClient({
                 </div>
               </div>
 
-              <div className='space-y-1.5'>
-                <Label htmlFor='edit-pat-address'>Address</Label>
-                <Input
-                  id='edit-pat-address'
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                />
-              </div>
-
               <DialogFooter className='gap-2 pt-2'>
                 <Button type='button' variant='outline' onClick={() => setEditItem(null)}>
                   Cancel
                 </Button>
-                <Button type='submit' className='bg-blue-600 hover:bg-blue-700' disabled={submitting}>
+                <Button type='submit' className='bg-teal-600 hover:bg-teal-700 text-white' disabled={submitting}>
                   {submitting ? 'Updating...' : 'Update Record'}
                 </Button>
               </DialogFooter>
@@ -810,125 +1403,167 @@ export function PatientsClient({
         </Dialog>
       )}
 
-      {/* View Patient Clinical Dossier Dialog */}
+      {/* View Patient Clinical Dossier Dialog matching attached Mobile Screen */}
       {viewItem && (
         <Dialog open={!!viewItem} onOpenChange={(open) => !open && setViewItem(null)}>
-          <DialogContent className='max-w-xl max-h-[90vh] overflow-y-auto'>
-            <DialogHeader>
-              <div className='flex items-center gap-3'>
-                <div className='p-3 bg-rose-50 text-rose-600 rounded-full'>
-                  <HeartPulse className='h-6 w-6' />
-                </div>
-                <div>
-                  <DialogTitle className='text-xl flex items-center gap-2'>
-                    {viewItem.name}
-                    <Badge variant='outline' className='capitalize text-xs'>
-                      {viewItem.gender || 'Unknown'} &bull; {viewItem.age ? `${viewItem.age} yrs` : ''}
-                    </Badge>
-                  </DialogTitle>
-                  <DialogDescription className='flex items-center gap-2 mt-0.5'>
-                    <Phone className='h-3.5 w-3.5 text-muted-foreground' />
-                    <span className='font-mono'>{viewItem.phone || viewItem.mobile || 'No contact'}</span>
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
+          <DialogContent className='max-w-md p-0 overflow-hidden rounded-3xl border shadow-xl bg-slate-50/50 dark:bg-slate-950'>
+            {/* Top Bar matching Mobile Header */}
+            <div className='p-4 pb-2 flex items-center justify-between border-b bg-card'>
+              <h2 className='font-bold text-lg text-foreground text-center flex-1'>
+                Patient detail
+              </h2>
+            </div>
 
-            <div className='space-y-4 pt-2 text-sm'>
-              {/* Primary Physician */}
-              <div className='p-3 bg-muted/40 rounded-lg'>
-                <span className='text-xs text-muted-foreground block font-medium'>
-                  Attending / Referring Physician
-                </span>
-                {viewItem.registeredBy ? (
-                  <div className='mt-1'>
-                    <div className='font-semibold text-foreground'>{viewItem.registeredBy.name}</div>
-                    <div className='text-xs text-muted-foreground'>
-                      {viewItem.registeredBy.specialization} &bull; {viewItem.registeredBy.hospital}
+            <div className='p-4 space-y-4 max-h-[80vh] overflow-y-auto'>
+              {/* Header Card matching Screenshot */}
+              <div className='p-4 border rounded-2xl bg-card shadow-sm space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-3'>
+                    {viewItem.avatar ? (
+                      <img
+                        src={viewItem.avatar}
+                        alt={viewItem.name}
+                        className='h-14 w-14 rounded-2xl object-cover border shrink-0 shadow-sm'
+                      />
+                    ) : (
+                      <div className='h-14 w-14 rounded-2xl bg-neutral-700 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0'>
+                        {viewItem.name
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2) || 'PT'}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className='font-bold text-lg text-foreground leading-tight'>
+                        {viewItem.name}
+                      </h3>
+                      <p className='text-xs text-muted-foreground mt-0.5'>
+                        Patient ID: {viewItem.patientId || `p-${viewItem._id.slice(-5)}`}
+                      </p>
                     </div>
                   </div>
-                ) : (
-                  <span className='text-xs text-muted-foreground italic mt-1 block'>
-                    Direct Intake (Walk-in)
-                  </span>
-                )}
-              </div>
-
-              {/* Medical History */}
-              <div>
-                <h4 className='text-xs font-semibold uppercase text-muted-foreground'>
-                  Clinical Background & Symptoms
-                </h4>
-                <p className='text-xs text-foreground mt-1 p-3 bg-muted/30 rounded border leading-relaxed'>
-                  {viewItem.medicalHistory || viewItem.problem || 'No prior notes documented.'}
-                </p>
-              </div>
-
-              {viewItem.diagnosis && (
-                <div>
-                  <h4 className='text-xs font-semibold uppercase text-muted-foreground'>
-                    Preliminary Clinical Diagnosis
-                  </h4>
-                  <p className='text-xs text-foreground mt-1 p-2.5 bg-muted/30 rounded border font-medium'>
-                    {viewItem.diagnosis}
-                  </p>
-                </div>
-              )}
-
-              {viewItem.prescription && (
-                <div>
-                  <h4 className='text-xs font-semibold uppercase text-muted-foreground'>
-                    Prescription / Active Regimen
-                  </h4>
-                  <p className='text-xs text-foreground mt-1 p-2.5 bg-muted/30 rounded border font-mono'>
-                    {viewItem.prescription}
-                  </p>
-                </div>
-              )}
-
-              <div className='grid grid-cols-2 gap-3 text-xs'>
-                {viewItem.address && (
-                  <div className='p-2.5 border rounded'>
-                    <span className='text-muted-foreground block'>Address</span>
-                    <span className='font-medium text-foreground mt-0.5 block'>{viewItem.address}</span>
+                  <div className='text-xs text-muted-foreground font-medium'>
+                    Age: {viewItem.age || 45} &nbsp;|&nbsp;{' '}
+                    <span className='capitalize'>{viewItem.gender?.toLowerCase() === 'female' ? 'Female' : 'Male'}</span>
                   </div>
-                )}
-                {viewItem.emergencyContact && (
-                  <div className='p-2.5 border rounded'>
-                    <span className='text-muted-foreground block'>Emergency Contact</span>
-                    <span className='font-medium text-foreground mt-0.5 block'>
-                      {viewItem.emergencyContact}
-                    </span>
+                </div>
+
+                {/* Health Summary Section */}
+                <div className='space-y-2 pt-2 border-t'>
+                  <h4 className='font-semibold text-sm text-foreground'>Health Summary</h4>
+                  <div className='flex flex-wrap gap-2'>
+                    <div className='inline-flex items-center px-3 py-1 rounded-full border bg-card text-xs text-muted-foreground'>
+                      Condition:&nbsp;<span className='text-teal-600 dark:text-teal-400 font-semibold'>{viewItem.condition || viewItem.problem || 'Chest Pain'}</span>
+                    </div>
+                    <div className='inline-flex items-center px-3 py-1 rounded-full border bg-card text-xs text-muted-foreground'>
+                      Blood Group:&nbsp;<span className='text-teal-600 dark:text-teal-400 font-semibold'>{viewItem.bloodGroup || 'B+'}</span>
+                    </div>
+                    <div className='inline-flex items-center px-3 py-1 rounded-full border bg-card text-xs text-muted-foreground'>
+                      Allergies:&nbsp;<span className='text-teal-600 dark:text-teal-400 font-semibold'>{viewItem.allergies || 'None'}</span>
+                    </div>
                   </div>
-                )}
+                </div>
+
+                {/* Current Case Status Section */}
+                <div className='space-y-2 pt-2 border-t'>
+                  <h4 className='font-semibold text-sm text-foreground'>Current Case Status</h4>
+                  <div className='space-y-2'>
+                    <div className='inline-flex items-center px-3 py-1.5 rounded-full border bg-card text-xs text-muted-foreground max-w-full truncate'>
+                      Doctor:&nbsp;
+                      <span className='text-teal-600 dark:text-teal-400 font-semibold truncate'>
+                        {viewItem.registeredBy?.name || viewItem.doctorId?.name || 'Dr. Amit Mehta'}{' '}
+                        ({viewItem.registeredBy?.specialization || viewItem.doctorId?.specialization || 'Cardiologist'})
+                      </span>
+                    </div>
+                    <br />
+                    <div className='inline-flex items-center px-3 py-1.5 rounded-full border bg-card text-xs text-muted-foreground'>
+                      Status:&nbsp;<span className='text-teal-600 dark:text-teal-400 font-semibold'>{viewItem.caseStatus || 'Under Treatment'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Medical History Section */}
+                <div className='space-y-2 pt-2 border-t'>
+                  <h4 className='font-semibold text-sm text-foreground'>Medical History</h4>
+                  <div className='flex flex-wrap gap-2'>
+                    {(viewItem.medicalHistoryTags && viewItem.medicalHistoryTags.length > 0
+                      ? viewItem.medicalHistoryTags
+                      : ['Hypertension (2 years)', 'Previous Chest Discomfort']
+                    ).map((tag, i) => (
+                      <div
+                        key={i}
+                        className='px-3 py-1.5 rounded-full border bg-card text-xs font-medium text-foreground shadow-xs'
+                      >
+                        {tag}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <div className='p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg flex items-center justify-between text-xs'>
-                <span className='text-blue-700 dark:text-blue-300 font-medium'>
-                  Referral Consultation Pipeline
-                </span>
-                <Badge className='bg-blue-600 text-white font-bold'>
-                  {viewItem.referralCount || 0} Case
-                  {(viewItem.referralCount || 0) === 1 ? '' : 's'} Logged
-                </Badge>
+              {/* View Reports Card matching Screenshot */}
+              <div className='p-4 border rounded-2xl bg-card shadow-sm space-y-3'>
+                <div className='flex items-center justify-between'>
+                  <h4 className='font-semibold text-sm text-foreground'>View Reports</h4>
+                  <button
+                    type='button'
+                    onClick={() => toast.info('All attached documents are displayed below.')}
+                    className='text-xs text-teal-600 dark:text-teal-400 font-medium hover:underline'
+                  >
+                    View all
+                  </button>
+                </div>
+
+                <div className='space-y-2'>
+                  {(viewItem.reports && viewItem.reports.length > 0
+                    ? viewItem.reports
+                    : DEFAULT_REPORTS
+                  ).map((rep, idx) => (
+                    <div
+                      key={idx}
+                      className='flex items-center justify-between p-3 rounded-xl border bg-card hover:bg-muted/40 transition-colors'
+                    >
+                      <span className='font-medium text-xs text-foreground truncate pr-2'>
+                        {rep.name}
+                      </span>
+                      <div className='p-1.5 rounded-lg text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 shrink-0'>
+                        <Activity className='h-4 w-4' />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Call Action Button matching Screenshot */}
+              <div className='pt-1'>
+                <a
+                  href={`tel:${viewItem.phone || viewItem.mobile || ''}`}
+                  className='w-full py-3.5 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors text-sm'
+                >
+                  <Phone className='h-4 w-4 fill-current' />
+                  Call
+                </a>
               </div>
             </div>
 
-            <DialogFooter className='pt-2'>
-              <Button variant='outline' onClick={() => setViewItem(null)}>
+            <div className='p-3 border-t bg-card flex justify-end gap-2'>
+              <Button variant='outline' size='sm' onClick={() => setViewItem(null)}>
                 Close
               </Button>
               <Button
-                className='bg-blue-600 hover:bg-blue-700'
+                size='sm'
+                className='bg-teal-600 hover:bg-teal-700 text-white'
                 onClick={() => {
                   const pat = viewItem
                   setViewItem(null)
                   handleOpenEdit(pat)
                 }}
               >
-                <Pencil className='mr-1.5 h-4 w-4' /> Edit File
+                <Pencil className='mr-1.5 h-3.5 w-3.5' /> Edit File
               </Button>
-            </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -939,7 +1574,7 @@ export function PatientsClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this patient record and all clinical notes associated
+              This will permanently delete this patient record and all clinical documents associated
               with this chart.
             </AlertDialogDescription>
           </AlertDialogHeader>

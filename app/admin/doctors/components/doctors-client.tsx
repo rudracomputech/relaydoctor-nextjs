@@ -81,19 +81,49 @@ import {
   Phone,
   Mail,
   Wallet,
-  ShieldCheck,
-  Award,
+  Calendar,
+  Clock,
+  GraduationCap,
+  MapPin,
+  Check,
+  Activity,
+  CalendarDays,
+  User,
+  Trash,
 } from 'lucide-react'
+
+export interface EducationItem {
+  degree?: string
+  collegeName?: string
+  yearOfCompletion?: number | string
+  yearsOfExperience?: number
+}
 
 export interface DoctorItem {
   _id: string
   name: string
   email: string
   phone?: string
+  gender?: string
+  city?: string
+  location?: string
   specialization?: string
+  speciality?: string
   hospital?: string
   clinicAddress?: string
+  hospitalAddress?: string
+  additionalAddresses?: string[]
+  age?: number
+  dateOfBirth?: string | Date
   experienceYears?: number
+  education?: EducationItem[]
+  workSchedule?: {
+    opdTiming?: string
+    opdDays?: string[]
+    surgeryTiming?: string
+    surgeryDays?: string[]
+  }
+  availabilityStatus?: string
   consultationFee?: number
   rating?: number
   reviewCount?: number
@@ -120,15 +150,86 @@ const SPECIALIZATIONS = [
   'Radiologist',
   'ENT Specialist',
   'Ophthalmologist',
+  'Cardiology',
+]
+
+const DEGREES = [
+  'MBBS',
+  'MD',
+  'MS',
+  'DM',
+  'MCh',
+  'DNB',
+  'BDS',
+  'MDS',
+  'BAMS',
+  'BHMS',
+  'Fellowship',
+  'Diploma',
+]
+
+const AVAILABILITY_OPTIONS = [
+  {
+    value: 'Available For Call',
+    label: 'Available For Call',
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
+    activeBg: 'bg-emerald-600 text-white',
+    icon: Phone,
+  },
+  {
+    value: 'In OPD',
+    label: 'In OPD',
+    color: 'bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-950 dark:text-teal-300',
+    activeBg: 'bg-teal-600 text-white',
+    icon: Stethoscope,
+  },
+  {
+    value: 'In Surgery',
+    label: 'In Surgery',
+    color: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-200',
+    activeBg: 'bg-slate-700 text-white',
+    icon: Clock,
+  },
+  {
+    value: 'Busy',
+    label: 'Busy',
+    color: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300',
+    activeBg: 'bg-rose-500 text-white',
+    icon: Activity,
+  },
+  {
+    value: 'In Vacation',
+    label: 'In Vacation',
+    color: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300',
+    activeBg: 'bg-amber-500 text-white',
+    icon: CalendarDays,
+  },
 ]
 
 export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[] }) {
   const [data, setData] = useState<DoctorItem[]>(initialDoctors)
   const [rowSelection, setRowSelection] = useState({})
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    experienceLevel: false,
+  })
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+
+  // Computed location options from active doctor records
+  const locationOptions = useMemo(() => {
+    const set = new Set<string>()
+    data.forEach((d) => {
+      if (d.city?.trim()) set.add(d.city.trim())
+      if (d.location?.trim()) set.add(d.location.trim())
+    })
+    if (set.size === 0) {
+      ;['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Pune', 'Kolkata'].forEach((c) =>
+        set.add(c)
+      )
+    }
+    return Array.from(set).map((c) => ({ label: c, value: c }))
+  }, [data])
 
   // Dialog states
   const [createOpen, setCreateOpen] = useState(false)
@@ -137,19 +238,38 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Form state for Create/Edit
+  // Form state for Create/Edit matching attached screenshot
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
-    specialization: 'General Physician',
-    hospital: '',
+    gender: 'male',
+    city: '',
+    age: 35,
+    dateOfBirth: '',
+    specialization: 'Cardiology',
     clinicAddress: '',
-    experienceYears: 5,
+    hospitalAddress: '',
+    additionalAddresses: [] as string[],
+    experienceYears: 4,
+    education: [
+      {
+        degree: 'MBBS',
+        collegeName: '',
+        yearOfCompletion: 2018,
+        yearsOfExperience: 4,
+      },
+    ] as EducationItem[],
+    workSchedule: {
+      opdTiming: 'MON-FRI | 10 AM TO 1 PM',
+      surgeryTiming: 'MON-FRI | 10 AM TO 1 PM',
+    },
+    availabilityStatus: 'Available For Call',
     consultationFee: 500,
     isVerified: true,
     bio: '',
+    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face',
   })
 
   function resetForm() {
@@ -158,13 +278,32 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
       email: '',
       phone: '',
       password: '',
-      specialization: 'General Physician',
-      hospital: '',
+      gender: 'male',
+      city: '',
+      age: 35,
+      dateOfBirth: '',
+      specialization: 'Cardiology',
       clinicAddress: '',
-      experienceYears: 5,
+      hospitalAddress: '',
+      additionalAddresses: [],
+      experienceYears: 4,
+      education: [
+        {
+          degree: 'MBBS',
+          collegeName: '',
+          yearOfCompletion: 2018,
+          yearsOfExperience: 4,
+        },
+      ],
+      workSchedule: {
+        opdTiming: 'MON-FRI | 10 AM TO 1 PM',
+        surgeryTiming: 'MON-FRI | 10 AM TO 1 PM',
+      },
+      availabilityStatus: 'Available For Call',
       consultationFee: 500,
       isVerified: true,
       bio: '',
+      avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face',
     })
   }
 
@@ -174,20 +313,102 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
   }
 
   function handleOpenEdit(doctor: DoctorItem) {
+    const dobFormatted = doctor.dateOfBirth
+      ? new Date(doctor.dateOfBirth).toISOString().split('T')[0]
+      : ''
+
     setFormData({
       name: doctor.name || '',
       email: doctor.email || '',
       phone: doctor.phone || '',
       password: '',
-      specialization: doctor.specialization || 'General Physician',
-      hospital: doctor.hospital || '',
+      gender: (doctor.gender || 'male').toLowerCase(),
+      city: doctor.city || doctor.location || '',
+      age: doctor.age || 35,
+      dateOfBirth: dobFormatted,
+      specialization: doctor.specialization || doctor.speciality || 'Cardiology',
       clinicAddress: doctor.clinicAddress || '',
-      experienceYears: doctor.experienceYears || 5,
+      hospitalAddress: doctor.hospitalAddress || doctor.hospital || '',
+      additionalAddresses: doctor.additionalAddresses || [],
+      experienceYears: doctor.experienceYears || 4,
+      education:
+        doctor.education && doctor.education.length > 0
+          ? doctor.education
+          : [
+              {
+                degree: 'MBBS',
+                collegeName: '',
+                yearOfCompletion: 2018,
+                yearsOfExperience: doctor.experienceYears || 4,
+              },
+            ],
+      workSchedule: {
+        opdTiming: doctor.workSchedule?.opdTiming || 'MON-FRI | 10 AM TO 1 PM',
+        surgeryTiming: doctor.workSchedule?.surgeryTiming || 'MON-FRI | 10 AM TO 1 PM',
+      },
+      availabilityStatus: doctor.availabilityStatus || 'Available For Call',
       consultationFee: doctor.consultationFee || 500,
       isVerified: doctor.isVerified ?? true,
       bio: doctor.bio || '',
+      avatar:
+        doctor.avatar ||
+        'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face',
     })
     setEditItem(doctor)
+  }
+
+  // Address helpers
+  function addAddressField() {
+    setFormData((prev) => ({
+      ...prev,
+      additionalAddresses: [...prev.additionalAddresses, ''],
+    }))
+  }
+
+  function updateAddressField(index: number, val: string) {
+    setFormData((prev) => {
+      const updated = [...prev.additionalAddresses]
+      updated[index] = val
+      return { ...prev, additionalAddresses: updated }
+    })
+  }
+
+  function removeAddressField(index: number) {
+    setFormData((prev) => ({
+      ...prev,
+      additionalAddresses: prev.additionalAddresses.filter((_, i) => i !== index),
+    }))
+  }
+
+  // Education helpers
+  function addEducationField() {
+    setFormData((prev) => ({
+      ...prev,
+      education: [
+        ...prev.education,
+        {
+          degree: 'MD',
+          collegeName: '',
+          yearOfCompletion: 2020,
+          yearsOfExperience: 2,
+        },
+      ],
+    }))
+  }
+
+  function updateEducationField(index: number, key: keyof EducationItem, val: any) {
+    setFormData((prev) => {
+      const updated = [...prev.education]
+      updated[index] = { ...updated[index], [key]: val }
+      return { ...prev, education: updated }
+    })
+  }
+
+  function removeEducationField(index: number) {
+    setFormData((prev) => ({
+      ...prev,
+      education: prev.education.filter((_, i) => i !== index),
+    }))
   }
 
   async function handleCreateDoctor(e: React.FormEvent) {
@@ -199,16 +420,20 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
 
     try {
       setSubmitting(true)
+      const payload = {
+        ...formData,
+        hospital: formData.hospitalAddress || formData.clinicAddress,
+      }
       const res = await fetch('/api/admin/doctors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to create doctor')
 
       setData((prev) => [json.data, ...prev])
-      toast.success(`Dr. ${json.data.name} added successfully!`)
+      toast.success(`Dr. ${json.data.name} profile saved!`)
       setCreateOpen(false)
       resetForm()
     } catch (err: any) {
@@ -224,10 +449,14 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
 
     try {
       setSubmitting(true)
+      const payload = {
+        ...formData,
+        hospital: formData.hospitalAddress || formData.clinicAddress,
+      }
       const res = await fetch(`/api/admin/doctors/${editItem._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to update doctor')
@@ -235,12 +464,34 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
       setData((prev) =>
         prev.map((d) => (d._id === editItem._id ? { ...d, ...json.data } : d))
       )
-      toast.success('Doctor details updated')
+      toast.success('Doctor profile updated successfully')
       setEditItem(null)
     } catch (err: any) {
       toast.error(err.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleQuickStatusChange(doctor: DoctorItem, newStatus: string) {
+    try {
+      const res = await fetch(`/api/admin/doctors/${doctor._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ availabilityStatus: newStatus }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to update status')
+
+      setData((prev) =>
+        prev.map((d) => (d._id === doctor._id ? { ...d, availabilityStatus: newStatus } : d))
+      )
+      if (viewItem && viewItem._id === doctor._id) {
+        setViewItem({ ...viewItem, availabilityStatus: newStatus })
+      }
+      toast.success(`Status changed to "${newStatus}"`)
+    } catch (err: any) {
+      toast.error(err.message)
     }
   }
 
@@ -262,26 +513,6 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
       toast.error(err.message)
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  async function handleToggleVerify(doctor: DoctorItem) {
-    try {
-      const newStatus = !doctor.isVerified
-      const res = await fetch(`/api/admin/doctors/${doctor._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isVerified: newStatus }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to update status')
-
-      setData((prev) =>
-        prev.map((d) => (d._id === doctor._id ? { ...d, isVerified: newStatus } : d))
-      )
-      toast.success(newStatus ? 'Doctor verified' : 'Doctor unverified')
-    } catch (err: any) {
-      toast.error(err.message)
     }
   }
 
@@ -313,9 +544,10 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
       },
       {
         accessorKey: 'name',
-        header: ({ column }) => <DataTableColumnHeader column={column} title='Doctor' />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Doctor Profile' />,
         cell: ({ row }) => {
           const doc = row.original
+          const firstDegree = doc.education?.[0]?.degree
           return (
             <div className='flex items-center gap-3 py-1'>
               <img
@@ -324,18 +556,24 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                   'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face'
                 }
                 alt={doc.name}
-                className='h-10 w-10 rounded-full object-cover border border-teal-200'
+                className='h-11 w-11 rounded-full object-cover border-2 border-teal-200 shrink-0 shadow-sm'
               />
               <div className='min-w-0'>
                 <div className='font-semibold text-foreground truncate flex items-center gap-1.5'>
-                  {doc.name}
+                  <span>{doc.name}</span>
+                  {firstDegree && (
+                    <span className='text-[11px] font-normal text-muted-foreground font-mono'>
+                      ({firstDegree})
+                    </span>
+                  )}
                   {doc.isVerified && (
                     <CheckCircle2 className='h-3.5 w-3.5 text-teal-600 shrink-0' />
                   )}
                 </div>
                 <div className='text-xs text-muted-foreground flex items-center gap-2 mt-0.5'>
-                  <span className='truncate'>{doc.email}</span>
+                  {doc.age && <span>{doc.age} yrs</span>}
                   {doc.phone && <span>&bull; {doc.phone}</span>}
+                  <span className='truncate'>&bull; {doc.email}</span>
                 </div>
               </div>
             </div>
@@ -345,18 +583,20 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
       {
         accessorKey: 'specialization',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title='Specialization' />
+          <DataTableColumnHeader column={column} title='Speciality & Experience' />
         ),
         cell: ({ row }) => {
-          const spec = row.getValue('specialization') as string
-          const exp = row.original.experienceYears || 5
+          const spec = row.getValue('specialization') as string || row.original.speciality || 'General'
+          const exp = row.original.experienceYears || 4
           return (
             <div>
-              <Badge variant='outline' className='bg-teal-50 text-teal-700 border-teal-200'>
-                {spec || 'General'}
+              <Badge variant='outline' className='bg-teal-50 text-teal-700 border-teal-200 font-medium'>
+                {spec}
               </Badge>
-              <div className='text-[11px] text-muted-foreground mt-0.5'>
-                {exp} yrs experience
+              <div className='text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1'>
+                <Star className='h-3 w-3 fill-amber-400 text-amber-400' />
+                <span>{row.original.rating || 3.9}</span>
+                <span>&bull; {exp}+ Years Exp.</span>
               </div>
             </div>
           )
@@ -366,34 +606,118 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
         },
       },
       {
-        accessorKey: 'hospital',
-        header: ({ column }) => <DataTableColumnHeader column={column} title='Hospital / Clinic' />,
+        accessorKey: 'hospitalAddress',
+        header: 'Clinic & Hospital',
         cell: ({ row }) => {
-          const hosp = row.getValue('hospital') as string
+          const doc = row.original
           return (
-            <div className='text-xs max-w-48 truncate'>
-              <div className='font-medium text-foreground flex items-center gap-1'>
-                <Building2 className='h-3 w-3 text-muted-foreground' />
-                <span className='truncate'>{hosp || 'Private Practice'}</span>
-              </div>
-              <div className='text-muted-foreground truncate'>
-                {row.original.clinicAddress || 'Clinic details not added'}
-              </div>
+            <div className='text-xs max-w-48 space-y-0.5'>
+              {doc.hospitalAddress || doc.hospital ? (
+                <div className='font-medium text-foreground truncate flex items-center gap-1'>
+                  <Building2 className='h-3 w-3 text-muted-foreground shrink-0' />
+                  <span className='truncate'>{doc.hospitalAddress || doc.hospital}</span>
+                </div>
+              ) : null}
+              {doc.clinicAddress ? (
+                <div className='text-muted-foreground truncate flex items-center gap-1'>
+                  <MapPin className='h-3 w-3 text-muted-foreground shrink-0' />
+                  <span className='truncate'>{doc.clinicAddress}</span>
+                </div>
+              ) : null}
+              {!doc.hospitalAddress && !doc.clinicAddress && !doc.hospital && (
+                <span className='text-muted-foreground italic'>Address not added</span>
+              )}
             </div>
           )
         },
       },
       {
-        accessorKey: 'rating',
-        header: ({ column }) => <DataTableColumnHeader column={column} title='Rating' />,
+        accessorKey: 'gender',
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Gender' />,
         cell: ({ row }) => {
-          const rating = (row.getValue('rating') as number) || 4.8
-          const count = row.original.reviewCount || 100
+          const g = (row.getValue('gender') as string || row.original.gender || 'male').toLowerCase()
+          const isFemale = g === 'female'
           return (
-            <div className='flex items-center gap-1 text-xs font-semibold'>
-              <Star className='h-3.5 w-3.5 fill-amber-400 text-amber-400' />
-              <span>{rating}</span>
-              <span className='text-[10px] text-muted-foreground'>({count})</span>
+            <Badge variant='outline' className='text-xs font-normal border-muted'>
+              {isFemale ? 'Female Doctor' : 'Male Doctor'}
+            </Badge>
+          )
+        },
+        filterFn: (row, id, value) => {
+          const g = (row.getValue(id) as string || row.original.gender || 'male').toLowerCase()
+          return value.includes(g)
+        },
+      },
+      {
+        accessorKey: 'city',
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Location' />,
+        cell: ({ row }) => {
+          const doc = row.original
+          const loc = doc.city || doc.location || '—'
+          return (
+            <div className='flex items-center gap-1 text-xs text-muted-foreground'>
+              <MapPin className='h-3 w-3 text-teal-600 shrink-0' />
+              <span className='truncate'>{loc}</span>
+            </div>
+          )
+        },
+        filterFn: (row, id, value) => {
+          const c = ((row.getValue(id) as string) || row.original.city || row.original.location || '').toLowerCase()
+          return value.some((v: string) => c.includes(v.toLowerCase()))
+        },
+      },
+      {
+        id: 'experienceLevel',
+        accessorFn: (row) => {
+          const exp = row.experienceYears ?? 0
+          if (exp < 5) return '< 5 Years'
+          if (exp <= 10) return '5 - 10 Years'
+          if (exp <= 15) return '10 - 15 Years'
+          return '15+ Years'
+        },
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Experience' />,
+        cell: ({ row }) => {
+          return <span className='text-xs font-mono'>{row.getValue('experienceLevel')}</span>
+        },
+        filterFn: (row, id, value) => {
+          return value.includes(row.getValue(id))
+        },
+      },
+      {
+        accessorKey: 'availabilityStatus',
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Real-Time Status' />,
+        cell: ({ row }) => {
+          const status = (row.getValue('availabilityStatus') as string) || 'Available For Call'
+          const meta = AVAILABILITY_OPTIONS.find(
+            (o) => o.value.toLowerCase() === status.toLowerCase()
+          ) || AVAILABILITY_OPTIONS[0]
+          const Icon = meta.icon
+
+          return (
+            <Badge variant='outline' className={`${meta.color} font-medium text-xs flex items-center gap-1 py-1`}>
+              <Icon className='h-3 w-3' />
+              <span>{meta.label}</span>
+              {meta.value === 'Available For Call' && <Check className='h-3 w-3 text-emerald-600' />}
+            </Badge>
+          )
+        },
+        filterFn: (row, id, value) => {
+          return value.includes(row.getValue(id))
+        },
+      },
+      {
+        id: 'schedule',
+        header: 'Work Schedule',
+        cell: ({ row }) => {
+          const sched = row.original.workSchedule
+          return (
+            <div className='text-[11px] max-w-44 text-muted-foreground'>
+              <div className='truncate font-medium text-foreground'>
+                OPD: {sched?.opdTiming || 'MON-FRI | 10 AM TO 1 PM'}
+              </div>
+              <div className='truncate'>
+                Surgery: {sched?.surgeryTiming || 'MON-FRI | 10 AM TO 1 PM'}
+              </div>
             </div>
           )
         },
@@ -413,20 +737,8 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
         },
       },
       {
-        accessorKey: 'walletBalance',
-        header: ({ column }) => <DataTableColumnHeader column={column} title='Wallet' />,
-        cell: ({ row }) => {
-          const bal = (row.getValue('walletBalance') as number) || 0
-          return (
-            <span className='font-mono text-xs font-semibold text-emerald-600'>
-              ₹{bal.toLocaleString()}
-            </span>
-          )
-        },
-      },
-      {
         accessorKey: 'isVerified',
-        header: ({ column }) => <DataTableColumnHeader column={column} title='Status' />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Verification' />,
         cell: ({ row }) => {
           const isVer = Boolean(row.getValue('isVerified'))
           return isVer ? (
@@ -438,10 +750,6 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
               Pending
             </Badge>
           )
-        },
-        filterFn: (row, id, value) => {
-          const valStr = String(row.getValue(id))
-          return value.includes(valStr)
         },
       },
       {
@@ -455,28 +763,31 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                   <MoreHorizontal className='h-4 w-4' />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44'>
+              <DropdownMenuContent align='end' className='w-48'>
                 <DropdownMenuItem onClick={() => setViewItem(doc)}>
                   <Eye className='mr-2 h-4 w-4 text-muted-foreground' />
-                  View Profile
+                  View Full Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleOpenEdit(doc)}>
                   <Pencil className='mr-2 h-4 w-4 text-muted-foreground' />
-                  Edit Doctor
+                  Edit Profile Fields
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleToggleVerify(doc)}>
-                  {doc.isVerified ? (
-                    <>
-                      <XCircle className='mr-2 h-4 w-4 text-amber-600' />
-                      Mark Unverified
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className='mr-2 h-4 w-4 text-emerald-600' />
-                      Mark Verified
-                    </>
-                  )}
-                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <div className='px-2 py-1 text-[10px] uppercase font-semibold text-muted-foreground'>
+                  Set Real-Time Status:
+                </div>
+                {AVAILABILITY_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => handleQuickStatusChange(doc, opt.value)}
+                    className='text-xs'
+                  >
+                    <opt.icon className='mr-2 h-3.5 w-3.5' />
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setDeleteId(doc._id)}
@@ -513,12 +824,19 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
     globalFilterFn: (row, _columnId, filterValue) => {
       const search = String(filterValue).toLowerCase()
       const doc = row.original
+      const degrees = (doc.education || []).map((e) => e.degree).join(' ')
       return (
         doc.name.toLowerCase().includes(search) ||
         doc.email.toLowerCase().includes(search) ||
         (doc.specialization || '').toLowerCase().includes(search) ||
         (doc.hospital || '').toLowerCase().includes(search) ||
-        (doc.phone || '').includes(search)
+        (doc.hospitalAddress || '').toLowerCase().includes(search) ||
+        (doc.clinicAddress || '').toLowerCase().includes(search) ||
+        (doc.city || '').toLowerCase().includes(search) ||
+        (doc.location || '').toLowerCase().includes(search) ||
+        (doc.gender || '').toLowerCase().includes(search) ||
+        degrees.toLowerCase().includes(search) ||
+        (doc.availabilityStatus || '').toLowerCase().includes(search)
       )
     },
     getCoreRowModel: getCoreRowModel(),
@@ -535,7 +853,7 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
         <div className='flex items-center gap-2'>
           <Button onClick={handleOpenCreate} className='bg-teal-600 hover:bg-teal-700 text-white'>
-            <Plus className='h-4 w-4 mr-1.5' /> Add Doctor
+            <Plus className='h-4 w-4 mr-1.5' /> Add Doctor Profile
           </Button>
           <Badge variant='outline' className='px-3 py-1 bg-teal-50 text-teal-700 border-teal-200'>
             {data.length} Registered Specialists
@@ -543,23 +861,47 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
         </div>
       </div>
 
-      {/* Toolbar with faceted filters & search */}
+      {/* Toolbar with faceted filters & search matching mobile Filter screen */}
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Search by name, email, specialization...'
+        searchPlaceholder='Search by name, degree, address, speciality, location, status...'
         filters={[
           {
             columnId: 'specialization',
-            title: 'Specialty',
+            title: 'Speciality',
             options: SPECIALIZATIONS.map((s) => ({ label: s, value: s })),
           },
           {
-            columnId: 'isVerified',
-            title: 'Verification',
+            columnId: 'gender',
+            title: 'Gender',
             options: [
-              { label: 'Verified', value: 'true', icon: CheckCircle2 },
-              { label: 'Pending', value: 'false', icon: XCircle },
+              { label: 'Male Doctor', value: 'male' },
+              { label: 'Female Doctor', value: 'female' },
             ],
+          },
+          {
+            columnId: 'availabilityStatus',
+            title: 'Availability',
+            options: AVAILABILITY_OPTIONS.map((o) => ({
+              label: o.label,
+              value: o.value,
+              icon: o.icon,
+            })),
+          },
+          {
+            columnId: 'experienceLevel',
+            title: 'Experience',
+            options: [
+              { label: '< 5 Years', value: '< 5 Years' },
+              { label: '5 - 10 Years', value: '5 - 10 Years' },
+              { label: '10 - 15 Years', value: '10 - 15 Years' },
+              { label: '15+ Years', value: '15+ Years' },
+            ],
+          },
+          {
+            columnId: 'city',
+            title: 'Location',
+            options: locationOptions,
           },
         ]}
       />
@@ -604,211 +946,122 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
 
       <DataTablePagination table={table} />
 
-      {/* Create Doctor Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+      {/* Create / Edit Form Dialog */}
+      <Dialog
+        open={createOpen || !!editItem}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateOpen(false)
+            setEditItem(null)
+          }
+        }}
+      >
+        <DialogContent className='max-w-2xl max-h-[92vh] overflow-y-auto'>
           <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
+            <DialogTitle className='flex items-center gap-2 text-xl'>
               <Stethoscope className='h-5 w-5 text-teal-600' />
-              Register New Specialist Doctor
+              {editItem ? `Edit Doctor Profile: ${editItem.name}` : 'Create Doctor Profile'}
             </DialogTitle>
             <DialogDescription>
-              Add a new physician to the RelayDoctor patient referral network.
+              Configure basic details, education, clinic/hospital addresses, work schedules, and real-time availability.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateDoctor} className='space-y-4 pt-2'>
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-name'>Full Name *</Label>
-                <Input
-                  id='doc-name'
-                  placeholder='Dr. Rajesh Sharma'
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-email'>Email Address *</Label>
-                <Input
-                  id='doc-email'
-                  type='email'
-                  placeholder='dr.rajesh@hospital.com'
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-phone'>Phone Number</Label>
-                <Input
-                  id='doc-phone'
-                  placeholder='+91 98765 43210'
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-pass'>Temporary Password</Label>
-                <Input
-                  id='doc-pass'
-                  type='password'
-                  placeholder='Default: doctor123'
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-spec'>Specialization</Label>
-                <Select
-                  value={formData.specialization}
-                  onValueChange={(val) => setFormData({ ...formData, specialization: val })}
-                >
-                  <SelectTrigger id='doc-spec'>
-                    <SelectValue placeholder='Select specialization' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SPECIALIZATIONS.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-hospital'>Hospital / Affiliation</Label>
-                <Input
-                  id='doc-hospital'
-                  placeholder='Apollo Hospitals / City Care Clinic'
-                  value={formData.hospital}
-                  onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-exp'>Years of Experience</Label>
-                <Input
-                  id='doc-exp'
-                  type='number'
-                  min={0}
-                  value={formData.experienceYears}
-                  onChange={(e) =>
-                    setFormData({ ...formData, experienceYears: Number(e.target.value) })
-                  }
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='doc-fee'>Consultation Fee (₹)</Label>
-                <Input
-                  id='doc-fee'
-                  type='number'
-                  min={0}
-                  value={formData.consultationFee}
-                  onChange={(e) =>
-                    setFormData({ ...formData, consultationFee: Number(e.target.value) })
-                  }
-                />
-              </div>
-            </div>
 
-            <div className='space-y-1.5'>
-              <Label htmlFor='doc-clinic'>Clinic / Hospital Address</Label>
-              <Input
-                id='doc-clinic'
-                placeholder='Room 402, Medical Block B, Ring Road'
-                value={formData.clinicAddress}
-                onChange={(e) => setFormData({ ...formData, clinicAddress: e.target.value })}
-              />
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='doc-bio'>Professional Bio / Summary</Label>
-              <Input
-                id='doc-bio'
-                placeholder='Experienced practitioner specializing in non-invasive interventions...'
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              />
-            </div>
-
-            <div className='flex items-center justify-between p-3 border rounded-lg bg-muted/40'>
-              <div>
-                <Label htmlFor='doc-verified' className='font-medium cursor-pointer'>
-                  Mark as Verified Physician
-                </Label>
-                <p className='text-xs text-muted-foreground'>
-                  Doctor credentials and medical license will be marked active immediately.
-                </p>
+          <form onSubmit={editItem ? handleUpdateDoctor : handleCreateDoctor} className='space-y-6 pt-2'>
+            {/* Section 1: Basic Detail */}
+            <div className='p-4 border rounded-xl bg-card space-y-4'>
+              <div className='flex items-center gap-2 font-bold text-sm text-foreground border-b pb-2'>
+                <User className='h-4 w-4 text-teal-600' />
+                <span>Basic Detail</span>
               </div>
-              <Switch
-                id='doc-verified'
-                checked={formData.isVerified}
-                onCheckedChange={(checked) => setFormData({ ...formData, isVerified: checked })}
-              />
-            </div>
 
-            <DialogFooter className='gap-2 pt-2'>
-              <Button type='button' variant='outline' onClick={() => setCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button type='submit' className='bg-teal-600 hover:bg-teal-700' disabled={submitting}>
-                {submitting ? 'Registering...' : 'Register Doctor'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Doctor Dialog */}
-      {editItem && (
-        <Dialog open={!!editItem} onOpenChange={(open) => !open && setEditItem(null)}>
-          <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
-            <DialogHeader>
-              <DialogTitle className='flex items-center gap-2'>
-                <Pencil className='h-5 w-5 text-teal-600' />
-                Edit Doctor: {editItem.name}
-              </DialogTitle>
-              <DialogDescription>
-                Modify profile details, affiliations, and verification status.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleUpdateDoctor} className='space-y-4 pt-2'>
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-doc-name'>Full Name</Label>
+                  <Label htmlFor='f-name'>Name *</Label>
                   <Input
-                    id='edit-doc-name'
+                    id='f-name'
+                    placeholder='Dr ANIL'
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
                   />
                 </div>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-doc-email'>Email Address</Label>
+                  <Label htmlFor='f-email'>Email *</Label>
                   <Input
-                    id='edit-doc-email'
+                    id='f-email'
                     type='email'
+                    placeholder='doctor@hospital.com'
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
                   />
                 </div>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-doc-phone'>Phone Number</Label>
+                  <Label htmlFor='f-phone'>Phone Number</Label>
                   <Input
-                    id='edit-doc-phone'
+                    id='f-phone'
+                    placeholder='+91 98765 43210'
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   />
                 </div>
+                {!editItem && (
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='f-pass'>Password</Label>
+                    <Input
+                      id='f-pass'
+                      type='password'
+                      placeholder='Default: doctor123'
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    />
+                  </div>
+                )}
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-doc-spec'>Specialization</Label>
+                  <Label htmlFor='f-age'>Age</Label>
+                  <Input
+                    id='f-age'
+                    type='number'
+                    min={20}
+                    max={100}
+                    value={formData.age}
+                    onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-dob'>Date of Birth</Label>
+                  <Input
+                    id='f-dob'
+                    type='date'
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-gender'>Gender</Label>
+                  <Select
+                    value={formData.gender || 'male'}
+                    onValueChange={(val) => setFormData({ ...formData, gender: val })}
+                  >
+                    <SelectTrigger id='f-gender'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='male'>Male Doctor</SelectItem>
+                      <SelectItem value='female'>Female Doctor</SelectItem>
+                      <SelectItem value='other'>Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-spec'>Speciality</Label>
                   <Select
                     value={formData.specialization}
                     onValueChange={(val) => setFormData({ ...formData, specialization: val })}
                   >
-                    <SelectTrigger id='edit-doc-spec'>
-                      <SelectValue placeholder='Select specialization' />
+                    <SelectTrigger id='f-spec'>
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {SPECIALIZATIONS.map((s) => (
@@ -820,17 +1073,18 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                   </Select>
                 </div>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-doc-hospital'>Hospital / Affiliation</Label>
+                  <Label htmlFor='f-city'>City / Area (Location)</Label>
                   <Input
-                    id='edit-doc-hospital'
-                    value={formData.hospital}
-                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
+                    id='f-city'
+                    placeholder='e.g. Mumbai, Bandra'
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   />
                 </div>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='edit-doc-fee'>Consultation Fee (₹)</Label>
+                  <Label htmlFor='f-fee'>Consultation Fee (₹)</Label>
                   <Input
-                    id='edit-doc-fee'
+                    id='f-fee'
                     type='number'
                     value={formData.consultationFee}
                     onChange={(e) =>
@@ -840,151 +1094,482 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                 </div>
               </div>
 
-              <div className='space-y-1.5'>
-                <Label htmlFor='edit-doc-clinic'>Clinic / Hospital Address</Label>
-                <Input
-                  id='edit-doc-clinic'
-                  value={formData.clinicAddress}
-                  onChange={(e) => setFormData({ ...formData, clinicAddress: e.target.value })}
-                />
-              </div>
-
-              <div className='space-y-1.5'>
-                <Label htmlFor='edit-doc-bio'>Bio</Label>
-                <Input
-                  id='edit-doc-bio'
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                />
-              </div>
-
-              <div className='flex items-center justify-between p-3 border rounded-lg bg-muted/40'>
-                <div>
-                  <Label htmlFor='edit-doc-verified' className='font-medium cursor-pointer'>
-                    Verified Status
-                  </Label>
-                  <p className='text-xs text-muted-foreground'>
-                    Doctor will be displayed with a verified badge in referrals.
-                  </p>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-clinic'>Clinic Address</Label>
+                  <Input
+                    id='f-clinic'
+                    placeholder='House 123 newyork'
+                    value={formData.clinicAddress}
+                    onChange={(e) => setFormData({ ...formData, clinicAddress: e.target.value })}
+                  />
                 </div>
-                <Switch
-                  id='edit-doc-verified'
-                  checked={formData.isVerified}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isVerified: checked })}
-                />
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-hosp'>Hospital Address</Label>
+                  <Input
+                    id='f-hosp'
+                    placeholder='City Hospital'
+                    value={formData.hospitalAddress}
+                    onChange={(e) => setFormData({ ...formData, hospitalAddress: e.target.value })}
+                  />
+                </div>
               </div>
 
-              <DialogFooter className='gap-2 pt-2'>
-                <Button type='button' variant='outline' onClick={() => setEditItem(null)}>
-                  Cancel
-                </Button>
-                <Button type='submit' className='bg-teal-600 hover:bg-teal-700' disabled={submitting}>
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+              {/* Additional Addresses */}
+              {formData.additionalAddresses.map((addr, idx) => (
+                <div key={idx} className='flex items-center gap-2'>
+                  <Input
+                    placeholder={`Additional Address #${idx + 1}`}
+                    value={addr}
+                    onChange={(e) => updateAddressField(idx, e.target.value)}
+                  />
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => removeAddressField(idx)}
+                    className='text-destructive'
+                  >
+                    <Trash className='h-4 w-4' />
+                  </Button>
+                </div>
+              ))}
 
-      {/* View Doctor Profile Dialog */}
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={addAddressField}
+                className='w-full text-teal-700 border-teal-300 hover:bg-teal-50'
+              >
+                <Plus className='h-4 w-4 mr-1' /> Add Address +
+              </Button>
+            </div>
+
+            {/* Section 2: Education & Experience */}
+            <div className='p-4 border rounded-xl bg-card space-y-4'>
+              <div className='flex items-center gap-2 font-bold text-sm text-foreground border-b pb-2'>
+                <GraduationCap className='h-4 w-4 text-teal-600' />
+                <span>Education & Experience</span>
+              </div>
+
+              {formData.education.map((edu, idx) => (
+                <div key={idx} className='p-3 border rounded-lg bg-muted/20 space-y-3 relative'>
+                  {formData.education.length > 1 && (
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      className='absolute top-2 right-2 text-destructive h-7 w-7 p-0'
+                      onClick={() => removeEducationField(idx)}
+                    >
+                      <Trash className='h-3.5 w-3.5' />
+                    </Button>
+                  )}
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>Degree</Label>
+                      <Select
+                        value={edu.degree || 'MBBS'}
+                        onValueChange={(val) => updateEducationField(idx, 'degree', val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEGREES.map((d) => (
+                            <SelectItem key={d} value={d}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>Collage Name</Label>
+                      <Input
+                        placeholder='e.g. AIIMS New Delhi'
+                        value={edu.collegeName || ''}
+                        onChange={(e) => updateEducationField(idx, 'collegeName', e.target.value)}
+                      />
+                    </div>
+
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>Year of Completion</Label>
+                      <Input
+                        placeholder='e.g. 2018'
+                        value={edu.yearOfCompletion || ''}
+                        onChange={(e) =>
+                          updateEducationField(idx, 'yearOfCompletion', e.target.value)
+                        }
+                      />
+                    </div>
+
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>Years of Experience</Label>
+                      <Input
+                        type='number'
+                        min={0}
+                        placeholder='4'
+                        value={edu.yearsOfExperience || 0}
+                        onChange={(e) =>
+                          updateEducationField(idx, 'yearsOfExperience', Number(e.target.value))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={addEducationField}
+                className='w-full text-teal-700 border-teal-300 hover:bg-teal-50'
+              >
+                <Plus className='h-4 w-4 mr-1' /> Add Education +
+              </Button>
+            </div>
+
+            {/* Section 3: Work Schedule */}
+            <div className='p-4 border rounded-xl bg-card space-y-4'>
+              <div className='flex items-center gap-2 font-bold text-sm text-foreground border-b pb-2'>
+                <Clock className='h-4 w-4 text-teal-600' />
+                <span>Work Schedule</span>
+              </div>
+
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-opd' className='flex items-center gap-1 text-xs'>
+                    <Clock className='h-3.5 w-3.5 text-teal-600' /> OPD Timing & Days
+                  </Label>
+                  <Input
+                    id='f-opd'
+                    placeholder='MON-FRI | 10 AM TO 1 PM'
+                    value={formData.workSchedule.opdTiming}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        workSchedule: { ...formData.workSchedule, opdTiming: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label htmlFor='f-surg' className='flex items-center gap-1 text-xs'>
+                    <Clock className='h-3.5 w-3.5 text-teal-600' /> Surgery Timing & Days
+                  </Label>
+                  <Input
+                    id='f-surg'
+                    placeholder='MON-FRI | 10 AM TO 1 PM'
+                    value={formData.workSchedule.surgeryTiming}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        workSchedule: { ...formData.workSchedule, surgeryTiming: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Real Time Availability Status */}
+            <div className='p-4 border rounded-xl bg-card space-y-3'>
+              <div className='flex items-center justify-between border-b pb-2'>
+                <div className='flex items-center gap-2 font-bold text-sm text-foreground'>
+                  <Activity className='h-4 w-4 text-teal-600' />
+                  <span>Real Time Availability status</span>
+                </div>
+                <span className='text-[11px] text-muted-foreground flex items-center gap-1'>
+                  <span className='h-2 w-2 rounded-full bg-emerald-500 animate-pulse' />
+                  Real-time status to other doctors
+                </span>
+              </div>
+
+              {/* Status pills selector matching screenshot */}
+              <div className='grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1'>
+                {AVAILABILITY_OPTIONS.map((opt) => {
+                  const isSelected = formData.availabilityStatus === opt.value
+                  const Icon = opt.icon
+                  return (
+                    <button
+                      key={opt.value}
+                      type='button'
+                      onClick={() => setFormData({ ...formData, availabilityStatus: opt.value })}
+                      className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                        isSelected
+                          ? `${opt.activeBg} border-transparent shadow-sm ring-2 ring-offset-1 ring-teal-500`
+                          : 'bg-muted/40 text-muted-foreground hover:bg-muted border-border'
+                      }`}
+                    >
+                      <Icon className='h-3.5 w-3.5' />
+                      <span>{opt.label}</span>
+                      {isSelected && opt.value === 'Available For Call' && (
+                        <Check className='h-3 w-3 ml-0.5' />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Verification Switch */}
+            <div className='flex items-center justify-between p-3 border rounded-lg bg-muted/40'>
+              <div>
+                <Label htmlFor='f-verified' className='font-medium cursor-pointer'>
+                  Mark as Verified Specialist
+                </Label>
+                <p className='text-xs text-muted-foreground'>
+                  Physician credentials marked active immediately across referrals.
+                </p>
+              </div>
+              <Switch
+                id='f-verified'
+                checked={formData.isVerified}
+                onCheckedChange={(checked) => setFormData({ ...formData, isVerified: checked })}
+              />
+            </div>
+
+            <DialogFooter className='gap-2 pt-2'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => {
+                  setCreateOpen(false)
+                  setEditItem(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type='submit' className='bg-teal-600 hover:bg-teal-700' disabled={submitting}>
+                {submitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Doctor Dossier Dialog matching attached screen */}
       {viewItem && (
         <Dialog open={!!viewItem} onOpenChange={(open) => !open && setViewItem(null)}>
-          <DialogContent className='max-w-xl max-h-[90vh] overflow-y-auto'>
+          <DialogContent className='max-w-lg max-h-[92vh] overflow-y-auto p-6'>
             <DialogHeader>
-              <div className='flex items-center gap-4'>
+              <DialogTitle className='text-lg font-bold'>Doctor Profile</DialogTitle>
+              <DialogDescription>Full physician registry dossier and real-time telemetry</DialogDescription>
+            </DialogHeader>
+
+            <div className='space-y-4 pt-2'>
+              {/* Header card matching the top of the mobile screen */}
+              <div className='p-4 bg-gradient-to-r from-teal-50/70 to-blue-50/50 dark:from-teal-950/40 dark:to-blue-950/20 border border-teal-200/70 rounded-2xl flex items-center gap-4'>
                 <img
                   src={
                     viewItem.avatar ||
                     'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face'
                   }
                   alt={viewItem.name}
-                  className='h-16 w-16 rounded-full object-cover border-2 border-teal-200'
+                  className='h-16 w-16 rounded-full object-cover border-2 border-white shadow-md'
                 />
-                <div>
-                  <DialogTitle className='text-xl flex items-center gap-2'>
-                    {viewItem.name}
+                <div className='min-w-0 flex-1'>
+                  <div className='flex items-center gap-2'>
+                    <h3 className='font-bold text-lg text-foreground truncate'>{viewItem.name}</h3>
                     {viewItem.isVerified && (
-                      <Badge className='bg-teal-100 text-teal-800 border-0 text-xs'>
-                        Verified
-                      </Badge>
+                      <CheckCircle2 className='h-4 w-4 text-teal-600 shrink-0' />
                     )}
-                  </DialogTitle>
-                  <DialogDescription className='text-teal-700 dark:text-teal-400 font-medium text-sm mt-0.5'>
-                    {viewItem.specialization} &bull; {viewItem.experienceYears || 5} Years Exp
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <div className='space-y-4 pt-2 text-sm'>
-              <div className='grid grid-cols-2 gap-3 p-3 bg-muted/40 rounded-lg'>
-                <div>
-                  <span className='text-xs text-muted-foreground block'>Hospital / Affiliation</span>
-                  <span className='font-medium text-foreground flex items-center gap-1 mt-0.5'>
-                    <Building2 className='h-3.5 w-3.5 text-muted-foreground' />
-                    {viewItem.hospital || 'Private Clinic'}
-                  </span>
-                </div>
-                <div>
-                  <span className='text-xs text-muted-foreground block'>Consultation Fee</span>
-                  <span className='font-semibold text-foreground mt-0.5 block'>
-                    ₹{viewItem.consultationFee || 500}
-                  </span>
-                </div>
-                <div>
-                  <span className='text-xs text-muted-foreground block'>Email</span>
-                  <span className='text-foreground flex items-center gap-1 mt-0.5 truncate'>
-                    <Mail className='h-3.5 w-3.5 text-muted-foreground shrink-0' />
-                    {viewItem.email}
-                  </span>
-                </div>
-                <div>
-                  <span className='text-xs text-muted-foreground block'>Phone</span>
-                  <span className='text-foreground flex items-center gap-1 mt-0.5'>
-                    <Phone className='h-3.5 w-3.5 text-muted-foreground shrink-0' />
-                    {viewItem.phone || 'N/A'}
-                  </span>
-                </div>
-              </div>
-
-              {viewItem.clinicAddress && (
-                <div>
-                  <h4 className='text-xs font-semibold uppercase text-muted-foreground'>Clinic Address</h4>
-                  <p className='text-xs text-foreground mt-1 p-2.5 bg-muted/30 rounded border'>
-                    {viewItem.clinicAddress}
+                  </div>
+                  <p className='text-sm font-semibold text-teal-700 dark:text-teal-400'>
+                    {viewItem.specialization || viewItem.speciality || 'Cardiologist'}
                   </p>
-                </div>
-              )}
-
-              {viewItem.bio && (
-                <div>
-                  <h4 className='text-xs font-semibold uppercase text-muted-foreground'>Biography</h4>
-                  <p className='text-xs text-foreground mt-1 p-2.5 bg-muted/30 rounded border'>
-                    {viewItem.bio}
-                  </p>
-                </div>
-              )}
-
-              <div className='grid grid-cols-3 gap-2 text-center text-xs pt-2'>
-                <div className='p-2 bg-muted/50 rounded-lg'>
-                  <div className='text-muted-foreground'>Rating</div>
-                  <div className='font-bold text-foreground flex items-center justify-center gap-1 mt-0.5'>
+                  <div className='flex items-center gap-1 text-xs text-muted-foreground mt-0.5'>
                     <Star className='h-3.5 w-3.5 fill-amber-400 text-amber-400' />
-                    {viewItem.rating || 4.8}
+                    <span className='font-semibold text-foreground'>{viewItem.rating || 3.9}</span>
+                    <span>| {viewItem.experienceYears || 15}+ Years Exp.</span>
                   </div>
                 </div>
-                <div className='p-2 bg-muted/50 rounded-lg'>
-                  <div className='text-muted-foreground'>Referrals (Sent/Recv)</div>
-                  <div className='font-bold text-foreground mt-0.5'>
-                    {viewItem.sentReferrals || 0} / {viewItem.receivedReferrals || 0}
+              </div>
+
+              {/* Section 1: Basic Detail */}
+              <div className='p-4 border rounded-xl bg-card space-y-2.5 text-xs'>
+                <div className='flex items-center gap-1.5 font-bold text-foreground text-sm border-b pb-1.5'>
+                  <User className='h-3.5 w-3.5 text-teal-600' /> Basic Detail
+                </div>
+
+                <div className='grid grid-cols-2 gap-2 pt-1'>
+                  <div>
+                    <span className='text-muted-foreground block'>Name</span>
+                    <span className='font-semibold text-foreground text-sm'>{viewItem.name}</span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground block'>Gender</span>
+                    <span className='font-semibold text-foreground capitalize'>
+                      {viewItem.gender?.toLowerCase() === 'female' ? 'Female Doctor' : 'Male Doctor'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground block'>Age</span>
+                    <span className='font-semibold text-foreground'>{viewItem.age || 35}</span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground block'>Date of Birth</span>
+                    <span className='font-medium text-foreground'>
+                      {viewItem.dateOfBirth
+                        ? new Date(viewItem.dateOfBirth).toLocaleDateString(undefined, {
+                            day: 'numeric',
+                            month: 'short',
+                          })
+                        : '15 May'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground block'>Speciality</span>
+                    <span className='font-medium text-teal-700 dark:text-teal-400'>
+                      {viewItem.specialization || viewItem.speciality || 'Cardiology'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground block'>City / Location</span>
+                    <span className='font-medium text-foreground'>
+                      {viewItem.city || viewItem.location || 'Not specified'}
+                    </span>
                   </div>
                 </div>
-                <div className='p-2 bg-muted/50 rounded-lg'>
-                  <div className='text-muted-foreground'>Wallet Balance</div>
-                  <div className='font-bold text-emerald-600 mt-0.5'>
-                    ₹{viewItem.walletBalance || 0}
+
+                <div className='pt-1 space-y-1.5'>
+                  <div>
+                    <span className='text-muted-foreground flex items-center gap-1'>
+                      <MapPin className='h-3 w-3 text-teal-600' /> Clinic Address
+                    </span>
+                    <span className='font-medium text-foreground pl-4 block'>
+                      {viewItem.clinicAddress || 'House 123 newyork'}
+                    </span>
                   </div>
+                  <div>
+                    <span className='text-muted-foreground flex items-center gap-1'>
+                      <Building2 className='h-3 w-3 text-teal-600' /> Hospital Address
+                    </span>
+                    <span className='font-medium text-foreground pl-4 block'>
+                      {viewItem.hospitalAddress || viewItem.hospital || 'City Hospital'}
+                    </span>
+                  </div>
+                  {viewItem.additionalAddresses && viewItem.additionalAddresses.length > 0 && (
+                    <div>
+                      <span className='text-muted-foreground pl-4 block font-semibold'>
+                        Additional Addresses ({viewItem.additionalAddresses.length}):
+                      </span>
+                      {viewItem.additionalAddresses.map((addr, i) => (
+                        <span key={i} className='font-medium text-foreground pl-4 block'>
+                          &bull; {addr}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 2: Education & Experience */}
+              <div className='p-4 border rounded-xl bg-card space-y-2.5 text-xs'>
+                <div className='flex items-center gap-1.5 font-bold text-foreground text-sm border-b pb-1.5'>
+                  <GraduationCap className='h-3.5 w-3.5 text-teal-600' /> Education & Experience
+                </div>
+
+                {viewItem.education && viewItem.education.length > 0 ? (
+                  viewItem.education.map((edu, idx) => (
+                    <div key={idx} className='p-2.5 bg-muted/30 rounded-lg space-y-1'>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-bold text-foreground text-sm'>{edu.degree || 'MBBS'}</span>
+                        <span className='text-muted-foreground font-mono'>
+                          Completed: {edu.yearOfCompletion || '2018'}
+                        </span>
+                      </div>
+                      <div className='text-muted-foreground'>
+                        College: <strong>{edu.collegeName || 'Medical Institute'}</strong>
+                      </div>
+                      <div className='text-teal-700 dark:text-teal-400 font-medium'>
+                        {edu.yearsOfExperience || viewItem.experienceYears || 4} Years Experience
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className='p-2.5 bg-muted/30 rounded-lg space-y-1'>
+                    <div className='flex items-center justify-between'>
+                      <span className='font-bold text-foreground text-sm'>MBBS</span>
+                      <span className='text-muted-foreground font-mono'>Completed: 2018</span>
+                    </div>
+                    <div className='text-muted-foreground'>College: Medical Institute</div>
+                    <div className='text-teal-700 dark:text-teal-400 font-medium'>
+                      {viewItem.experienceYears || 4} Years Experience
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Work Schedule */}
+              <div className='p-4 border rounded-xl bg-card space-y-2.5 text-xs'>
+                <div className='flex items-center gap-1.5 font-bold text-foreground text-sm border-b pb-1.5'>
+                  <Clock className='h-3.5 w-3.5 text-teal-600' /> Work Schedule
+                </div>
+
+                <div className='grid grid-cols-2 gap-3 pt-1'>
+                  <div className='p-2.5 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/50 rounded-lg'>
+                    <span className='font-semibold text-teal-800 dark:text-teal-300 flex items-center gap-1 mb-1'>
+                      <Clock className='h-3 w-3' /> OPD Timing & Days
+                    </span>
+                    <Badge variant='outline' className='bg-white dark:bg-slate-900 text-teal-700 font-mono text-[10px]'>
+                      {viewItem.workSchedule?.opdTiming || 'MON-FRI | 10 AM TO 1 PM'}
+                    </Badge>
+                  </div>
+
+                  <div className='p-2.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 rounded-lg'>
+                    <span className='font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1 mb-1'>
+                      <Clock className='h-3 w-3' /> Surgery Timing & Days
+                    </span>
+                    <Badge variant='outline' className='bg-white dark:bg-slate-900 text-blue-700 font-mono text-[10px]'>
+                      {viewItem.workSchedule?.surgeryTiming || 'MON-FRI | 10 AM TO 1 PM'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Real Time Availability status */}
+              <div className='p-4 border rounded-xl bg-card space-y-2 text-xs'>
+                <div className='flex items-center justify-between border-b pb-1.5'>
+                  <div className='flex items-center gap-1.5 font-bold text-foreground text-sm'>
+                    <Activity className='h-3.5 w-3.5 text-teal-600' /> Real Time Availability status
+                  </div>
+                  <span className='text-[10px] text-muted-foreground flex items-center gap-1'>
+                    <span className='h-2 w-2 rounded-full bg-emerald-500 animate-pulse' />
+                    Live to network
+                  </span>
+                </div>
+
+                <div className='pt-2 flex flex-wrap gap-2'>
+                  {AVAILABILITY_OPTIONS.map((opt) => {
+                    const isActive =
+                      (viewItem.availabilityStatus || 'Available For Call').toLowerCase() ===
+                      opt.value.toLowerCase()
+                    const Icon = opt.icon
+                    return (
+                      <button
+                        key={opt.value}
+                        type='button'
+                        onClick={() => handleQuickStatusChange(viewItem, opt.value)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                          isActive
+                            ? `${opt.activeBg} border-transparent shadow-sm ring-2 ring-offset-1 ring-teal-500`
+                            : 'bg-muted/40 text-muted-foreground hover:bg-muted border-border'
+                        }`}
+                      >
+                        <Icon className='h-3.5 w-3.5' />
+                        <span>{opt.label}</span>
+                        {isActive && opt.value === 'Available For Call' && (
+                          <Check className='h-3 w-3 ml-0.5' />
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -1001,7 +1586,7 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                   handleOpenEdit(doc)
                 }}
               >
-                <Pencil className='mr-1.5 h-4 w-4' /> Edit Details
+                <Pencil className='mr-1.5 h-4 w-4' /> Edit Doctor Profile
               </Button>
             </DialogFooter>
           </DialogContent>

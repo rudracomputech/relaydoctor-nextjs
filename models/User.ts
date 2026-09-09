@@ -8,13 +8,28 @@ export interface IUser extends Document {
   mobile?: string;
   role: 'admin' | 'doctor' | 'staff' | 'user';
   userRole?: 'user' | 'doctor' | 'admin';
+  gender?: 'male' | 'female' | 'other' | string;
+  city?: string;
+  location?: string;
+  coordinates?: {
+    latitude?: number;
+    longitude?: number;
+  };
   specialization?: string;
   speciality?: string;
   hospital?: string;
   clinicAddress?: string;
   hospitalAddress?: string;
+  additionalAddresses?: string[];
+  age?: number;
   dateOfBirth?: Date;
   experienceYears?: number;
+  education?: Array<{
+    degree?: string;
+    collegeName?: string;
+    yearOfCompletion?: number | string;
+    yearsOfExperience?: number;
+  }>;
   rating?: number;
   reviewCount?: number;
   avatar?: string;
@@ -56,13 +71,30 @@ const UserSchema = new Schema<IUser>(
     mobile: { type: String, trim: true },
     role: { type: String, enum: ['admin', 'doctor', 'staff', 'user'], default: 'doctor' },
     userRole: { type: String, enum: ['user', 'doctor', 'admin'], default: 'doctor' },
+    gender: { type: String, default: 'male' },
+    city: { type: String, default: '' },
+    location: { type: String, default: '' },
+    coordinates: {
+      latitude: { type: Number },
+      longitude: { type: Number },
+    },
     specialization: { type: String, default: 'General Physician' },
     speciality: { type: String, default: 'General Physician' },
     hospital: { type: String, default: '' },
     clinicAddress: { type: String, default: '' },
     hospitalAddress: { type: String, default: '' },
+    additionalAddresses: { type: [String], default: [] },
+    age: { type: Number },
     dateOfBirth: { type: Date },
     experienceYears: { type: Number, default: 5 },
+    education: [
+      {
+        degree: { type: String, default: '' },
+        collegeName: { type: String, default: '' },
+        yearOfCompletion: { type: Schema.Types.Mixed, default: '' },
+        yearsOfExperience: { type: Number, default: 0 },
+      },
+    ],
     rating: { type: Number, default: 4.8 },
     reviewCount: { type: Number, default: 120 },
     avatar: { type: String, default: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face' },

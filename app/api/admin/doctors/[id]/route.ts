@@ -69,6 +69,27 @@ export async function PUT(req: Request, context: any) {
     }
     if (body.hospital !== undefined) doctor.hospital = body.hospital
     if (body.clinicAddress !== undefined) doctor.clinicAddress = body.clinicAddress
+    if (body.hospitalAddress !== undefined) doctor.hospitalAddress = body.hospitalAddress
+    if (body.gender !== undefined) doctor.gender = body.gender
+    if (body.city !== undefined) doctor.city = body.city
+    if (body.location !== undefined) doctor.location = body.location
+    if (body.coordinates !== undefined) doctor.coordinates = body.coordinates
+    if (body.additionalAddresses !== undefined) {
+      doctor.additionalAddresses = Array.isArray(body.additionalAddresses)
+        ? body.additionalAddresses
+        : []
+    }
+    if (body.age !== undefined) doctor.age = body.age ? Number(body.age) : undefined
+    if (body.dateOfBirth !== undefined) {
+      doctor.dateOfBirth = body.dateOfBirth ? new Date(body.dateOfBirth) : undefined
+    }
+    if (body.education !== undefined) {
+      doctor.education = Array.isArray(body.education) ? body.education : []
+    }
+    if (body.workSchedule !== undefined) {
+      doctor.workSchedule = body.workSchedule
+    }
+    if (body.avatar !== undefined) doctor.avatar = body.avatar
     if (body.experienceYears !== undefined) doctor.experienceYears = Number(body.experienceYears)
     if (body.consultationFee !== undefined) doctor.consultationFee = Number(body.consultationFee)
     if (body.isVerified !== undefined) {

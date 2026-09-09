@@ -10,6 +10,11 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const speciality = url.searchParams.get('speciality');
     const location = url.searchParams.get('location');
+    const city = url.searchParams.get('city');
+    const gender = url.searchParams.get('gender');
+    const availability = url.searchParams.get('availability') || url.searchParams.get('availabilityStatus');
+    const minExperience = url.searchParams.get('minExperience');
+    const maxExperience = url.searchParams.get('maxExperience');
     const verified = url.searchParams.get('verified');
     const search = url.searchParams.get('search');
     const availableOnly = url.searchParams.get('availableOnly');
@@ -33,9 +38,50 @@ export async function GET(req: Request) {
       });
     }
 
+    if (gender) {
+      const genders = gender.split(',').map((g) => g.trim().toLowerCase());
+      andConditions.push({
+        gender: { $in: genders.map((g) => new RegExp(`^${g}$`, 'i')) },
+      });
+    }
+
+    if (availability) {
+      const availabilities = availability.split(',').map((a) => a.trim());
+      andConditions.push({
+        availabilityStatus: {
+          $in: availabilities.map((a) => new RegExp(a, 'i')),
+        },
+      });
+    }
+
+    if (minExperience !== null && minExperience !== undefined && minExperience !== '') {
+      andConditions.push({
+        experienceYears: { $gte: parseInt(minExperience, 10) },
+      });
+    }
+
+    if (maxExperience !== null && maxExperience !== undefined && maxExperience !== '') {
+      andConditions.push({
+        experienceYears: { $lte: parseInt(maxExperience, 10) },
+      });
+    }
+
+    if (city) {
+      andConditions.push({
+        $or: [
+          { city: { $regex: city, $options: 'i' } },
+          { location: { $regex: city, $options: 'i' } },
+          { clinicAddress: { $regex: city, $options: 'i' } },
+          { hospitalAddress: { $regex: city, $options: 'i' } },
+        ],
+      });
+    }
+
     if (location) {
       andConditions.push({
         $or: [
+          { city: { $regex: location, $options: 'i' } },
+          { location: { $regex: location, $options: 'i' } },
           { clinicAddress: { $regex: location, $options: 'i' } },
           { hospitalAddress: { $regex: location, $options: 'i' } },
           { hospital: { $regex: location, $options: 'i' } },
@@ -58,7 +104,7 @@ export async function GET(req: Request) {
     }
 
     if (availableOnly === 'true') {
-      filter.availabilityStatus = 'Available for Call or Online Consultation Only';
+      filter.availabilityStatus = { $regex: 'Available', $options: 'i' };
     }
 
     if (andConditions.length > 0) {
@@ -72,7 +118,7 @@ export async function GET(req: Request) {
 
     const doctors = await User.find(filter)
       .select(
-        'name email speciality specialization clinicAddress hospitalAddress hospital availabilityStatus verified isVerified profileImage avatar rating experienceYears reviewCount consultationFee'
+        'name email speciality specialization clinicAddress hospitalAddress hospital city location coordinates availabilityStatus verified isVerified profileImage avatar rating experienceYears reviewCount consultationFee gender education workSchedule age dateOfBirth'
       )
       .sort(sortOptions)
       .skip(skip)
