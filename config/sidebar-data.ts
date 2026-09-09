@@ -10,6 +10,7 @@ import {
   Stethoscope,
   Activity,
   HeartPulse,
+  ShieldCheck,
 } from "lucide-react"
 
 import { type SidebarData } from "@/components/types"
@@ -92,6 +93,16 @@ export const sidebarData: SidebarData = {
           title: "Transactions Ledger",
           url: "/admin/transactions",
           icon: Receipt,
+        },
+      ],
+    },
+    {
+      title: "Access Management",
+      items: [
+        {
+          title: "Users & Roles",
+          url: "/admin/users",
+          icon: ShieldCheck,
         },
       ],
     },

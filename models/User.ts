@@ -42,6 +42,7 @@ export interface IUser extends Document {
   documentRejectReason?: string;
   walletBalance: number;
   totalEarnings: number;
+  permissions?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,6 +97,7 @@ const UserSchema = new Schema<IUser>(
     documentRejectReason: { type: String, default: '' },
     walletBalance: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 },
+    permissions: { type: [String], default: [] },
   },
   { timestamps: true }
 );
