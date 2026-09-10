@@ -603,7 +603,7 @@ export function UsersClient({
                 <Input
                   id='usr-email'
                   type='email'
-                  placeholder='amit@relaydoctor.com'
+                  placeholder='amit@relaydor.com'
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required

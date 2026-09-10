@@ -88,7 +88,7 @@ export default async function Dashboard() {
       <Header>
         <div className="flex items-center space-x-2">
           <Stethoscope className="h-5 w-5 text-teal-600" />
-          <h2 className='text-lg font-semibold tracking-tight'>RelayDoctor Command Center</h2>
+          <h2 className='text-lg font-semibold tracking-tight'>relaydor Command Center</h2>
         </div>
         <div className='ms-auto flex items-center space-x-4'>
           <ThemeSwitch />

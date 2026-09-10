@@ -17,13 +17,13 @@ import { type SidebarData } from "@/components/types"
 
 export const sidebarData: SidebarData = {
   user: {
-    name: "RelayDoctor Admin",
-    email: "admin@relaydoctor.com",
+    name: "relaydor Admin",
+    email: "admin@relaydor.com",
     avatar: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face",
   },
   teams: [
     {
-      name: "RelayDoctor",
+      name: "relaydor",
       logo: HeartPulse,
       plan: "Medical Network Admin",
     },

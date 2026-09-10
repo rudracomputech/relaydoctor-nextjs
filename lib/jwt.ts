@@ -28,7 +28,7 @@ export async function getAuthenticatedDoctor(req: Request): Promise<IUser | null
       if (explicitDoctorId) {
         return await User.findById(explicitDoctorId);
       }
-      return await User.findOne({ email: 'john.malik@relaydoctor.com' });
+      return await User.findOne({ email: 'john.malik@relaydor.com' });
     }
 
     const token = authHeader.split(' ')[1];

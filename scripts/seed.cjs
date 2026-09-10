@@ -15,11 +15,11 @@ async function seed() {
 
   // 1. Admin
   await db.collection('users').updateOne(
-    { email: 'admin@relaydoctor.com' },
+    { email: 'admin@relaydor.com' },
     {
       $set: {
         name: 'System Admin',
-        email: 'admin@relaydoctor.com',
+        email: 'admin@relaydor.com',
         password: hashedPassword,
         role: 'admin',
         phone: '+91 9999999999',
@@ -34,7 +34,7 @@ async function seed() {
   // 2. Doctors
   const doctorsData = [
     {
-      email: 'john.malik@relaydoctor.com',
+      email: 'john.malik@relaydor.com',
       name: 'Dr. John Malik',
       password: doctorPassword,
       role: 'doctor',
@@ -51,7 +51,7 @@ async function seed() {
       isVerified: true,
     },
     {
-      email: 'arun.mehta@relaydoctor.com',
+      email: 'arun.mehta@relaydor.com',
       name: 'Dr. Arun Mehta',
       password: doctorPassword,
       role: 'doctor',
@@ -68,7 +68,7 @@ async function seed() {
       isVerified: true,
     },
     {
-      email: 'murari.singh@relaydoctor.com',
+      email: 'murari.singh@relaydor.com',
       name: 'Dr. Murari Singh',
       password: doctorPassword,
       role: 'doctor',
@@ -85,7 +85,7 @@ async function seed() {
       isVerified: true,
     },
     {
-      email: 'sunita.rao@relaydoctor.com',
+      email: 'sunita.rao@relaydor.com',
       name: 'Dr. Sunita Rao',
       password: doctorPassword,
       role: 'doctor',
@@ -518,7 +518,7 @@ async function seed() {
   ];
   await db.collection('notifications').insertMany(notificationsData);
 
-  console.log('Database seeded successfully with all RelayDoctor Figma design entities!');
+  console.log('Database seeded successfully with all relaydor Figma design entities!');
   await mongoose.disconnect();
   process.exit(0);
 }

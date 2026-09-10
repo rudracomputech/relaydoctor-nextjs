@@ -22,11 +22,11 @@ export async function POST() {
     const doctorPassword = await bcrypt.hash('doctor123', 10);
 
     // 1. Create or Update Admin
-    let admin = await User.findOne({ email: 'admin@relaydoctor.com' });
+    let admin = await User.findOne({ email: 'admin@relaydor.com' });
     if (!admin) {
       admin = await User.create({
         name: 'System Admin',
-        email: 'admin@relaydoctor.com',
+        email: 'admin@relaydor.com',
         password: hashedPassword,
         role: 'admin' as const,
         phone: '+91 9999999999',
@@ -37,7 +37,7 @@ export async function POST() {
     // 2. Create Doctors
     const doctorsData = [
       {
-        email: 'john.malik@relaydoctor.com',
+        email: 'john.malik@relaydor.com',
         name: 'Dr. John Malik',
         password: doctorPassword,
         role: 'doctor' as const,
@@ -53,7 +53,7 @@ export async function POST() {
         totalEarnings: 5800,
       },
       {
-        email: 'arun.mehta@relaydoctor.com',
+        email: 'arun.mehta@relaydor.com',
         name: 'Dr. Arun Mehta',
         password: doctorPassword,
         role: 'doctor' as const,
@@ -69,7 +69,7 @@ export async function POST() {
         totalEarnings: 7900,
       },
       {
-        email: 'murari.singh@relaydoctor.com',
+        email: 'murari.singh@relaydor.com',
         name: 'Dr. Murari Singh',
         password: doctorPassword,
         role: 'doctor' as const,
@@ -85,7 +85,7 @@ export async function POST() {
         totalEarnings: 3900,
       },
       {
-        email: 'sunita.rao@relaydoctor.com',
+        email: 'sunita.rao@relaydor.com',
         name: 'Dr. Sunita Rao',
         password: doctorPassword,
         role: 'doctor' as const,
@@ -481,8 +481,8 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: 'RelayDoctor database seeded successfully!',
-      adminUser: { email: 'admin@relaydoctor.com', password: 'admin123' },
+      message: 'relaydor database seeded successfully!',
+      adminUser: { email: 'admin@relaydor.com', password: 'admin123' },
       doctorsCount: seededDoctors.length,
       patientsCount: seededPatients.length,
       referralsCount: referralsData.length,
