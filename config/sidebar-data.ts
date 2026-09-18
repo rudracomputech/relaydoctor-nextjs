@@ -11,6 +11,7 @@ import {
   HeartPulse,
   ShieldCheck,
   Settings,
+  FileCode,
 } from "lucide-react"
 
 import { type SidebarData } from "@/components/types"
@@ -118,6 +119,12 @@ export const sidebarData: SidebarData = {
           title: "Platform Settings",
           url: "/admin/settings",
           icon: Settings,
+        },
+        {
+          title: "Mobile API Docs",
+          url: "/docs/mobile",
+          icon: FileCode,
+          badge: "OpenAPI",
         },
       ],
     },
