@@ -23,6 +23,12 @@ if (!global.mongooseCache) {
 }
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
+  // If already connected and ready, return instantly
+  if (mongoose.connection.readyState === 1) {
+    cached.conn = mongoose;
+    return mongoose;
+  }
+
   if (cached.conn) {
     return cached.conn;
   }
@@ -30,6 +36,10 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   if (!cached.promise) {
     const opts: mongoose.ConnectOptions = {
       bufferCommands: false,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongooseInstance) => {

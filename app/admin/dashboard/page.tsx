@@ -45,27 +45,22 @@ export default async function Dashboard() {
 
   await connectToDatabase()
 
-  // Fetch real-time statistics from MongoDB
   const [
     totalDoctors,
     totalPatients,
-    totalReferrals,
-    pendingReferrals,
-    inProgressReferrals,
-    completedReferrals,
+    referralStatusCounts,
     activeSubscriptions,
     pendingWithdrawals,
     recentReferrals,
     recentTransactions,
   ] = await Promise.all([
-    User.countDocuments({ role: 'doctor' }),
+    User.countDocuments({ $or: [{ role: 'doctor' }, { userRole: 'doctor' }] }),
     Patient.countDocuments(),
-    Referral.countDocuments(),
-    Referral.countDocuments({ status: 'pending' }),
-    Referral.countDocuments({ status: 'in_progress' }),
-    Referral.countDocuments({ status: 'completed' }),
+    Referral.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
     DoctorSubscription.countDocuments({ status: 'active' }),
-    WithdrawalRequest.countDocuments({ status: 'pending' }),
+    WithdrawalRequest.countDocuments({ status: { $in: ['pending', 'Pending', 'Under Review'] } }),
     Referral.find()
       .populate('referringDoctorId', 'name specialization hospital avatar')
       .populate('receivingDoctorId', 'name specialization hospital avatar')
@@ -78,6 +73,18 @@ export default async function Dashboard() {
       .limit(5)
       .lean(),
   ])
+
+  const refStatusMap: Record<string, number> = {}
+  let totalReferrals = 0
+  referralStatusCounts.forEach((s: any) => {
+    const key = (s._id || '').toLowerCase()
+    refStatusMap[key] = s.count
+    totalReferrals += s.count
+  })
+
+  const pendingReferrals = refStatusMap['pending'] || 0
+  const inProgressReferrals = refStatusMap['in_progress'] || 0
+  const completedReferrals = refStatusMap['completed'] || 0
 
   // Calculate platform metrics
   const totalVolume = recentTransactions.reduce((acc, t) => acc + (t.amount || 0), 0)

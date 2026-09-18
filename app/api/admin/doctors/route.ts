@@ -23,12 +23,23 @@ export async function GET() {
       .lean()
 
     const doctorIds = doctors.map((d: any) => d._id)
-    const wallets = await Wallet.find({
-      $or: [
-        { doctorId: { $in: doctorIds } },
-        { user: { $in: doctorIds } },
-      ],
-    }).lean()
+
+    const [wallets, sentCounts, receivedCounts] = await Promise.all([
+      Wallet.find({
+        $or: [
+          { doctorId: { $in: doctorIds } },
+          { user: { $in: doctorIds } },
+        ],
+      }).lean(),
+      Referral.aggregate([
+        { $match: { referringDoctorId: { $in: doctorIds } } },
+        { $group: { _id: '$referringDoctorId', count: { $sum: 1 } } },
+      ]),
+      Referral.aggregate([
+        { $match: { receivingDoctorId: { $in: doctorIds } } },
+        { $group: { _id: '$receivingDoctorId', count: { $sum: 1 } } },
+      ]),
+    ])
 
     const walletMap = new Map()
     wallets.forEach((w: any) => {
@@ -36,30 +47,30 @@ export async function GET() {
       if (w.user) walletMap.set(w.user.toString(), w)
     })
 
-    const doctorsWithStats = await Promise.all(
-      doctors.map(async (doc: any) => {
-        const docIdStr = doc._id.toString()
-        const docWallet = walletMap.get(docIdStr)
-        const [sentReferrals, receivedReferrals] = await Promise.all([
-          Referral.countDocuments({ referringDoctorId: doc._id }),
-          Referral.countDocuments({ receivingDoctorId: doc._id }),
-        ])
-        return {
-          ...doc,
-          _id: docIdStr,
-          walletBalance: docWallet
-            ? (docWallet.availableBalance ?? docWallet.balance ?? 0)
-            : (doc.walletBalance ?? 0),
-          totalEarnings: docWallet
-            ? (docWallet.totalEarnings ?? 0)
-            : (doc.totalEarnings ?? 0),
-          pendingBalance: docWallet ? (docWallet.pendingBalance ?? 0) : 0,
-          totalWithdrawn: docWallet ? (docWallet.totalWithdrawn ?? 0) : 0,
-          sentReferrals,
-          receivedReferrals,
-        }
-      })
-    )
+    const sentMap = new Map()
+    sentCounts.forEach((s: any) => sentMap.set(s._id.toString(), s.count))
+
+    const receivedMap = new Map()
+    receivedCounts.forEach((r: any) => receivedMap.set(r._id.toString(), r.count))
+
+    const doctorsWithStats = doctors.map((doc: any) => {
+      const docIdStr = doc._id.toString()
+      const docWallet = walletMap.get(docIdStr)
+      return {
+        ...doc,
+        _id: docIdStr,
+        walletBalance: docWallet
+          ? (docWallet.availableBalance ?? docWallet.balance ?? 0)
+          : (doc.walletBalance ?? 0),
+        totalEarnings: docWallet
+          ? (docWallet.totalEarnings ?? 0)
+          : (doc.totalEarnings ?? 0),
+        pendingBalance: docWallet ? (docWallet.pendingBalance ?? 0) : 0,
+        totalWithdrawn: docWallet ? (docWallet.totalWithdrawn ?? 0) : 0,
+        sentReferrals: sentMap.get(docIdStr) || 0,
+        receivedReferrals: receivedMap.get(docIdStr) || 0,
+      }
+    })
 
     return NextResponse.json({ success: true, data: doctorsWithStats })
   } catch (error: any) {

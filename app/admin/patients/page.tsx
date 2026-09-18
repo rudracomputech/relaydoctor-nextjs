@@ -31,18 +31,44 @@ export default async function PatientsPage() {
       .lean(),
   ])
 
-  const patientsWithReferrals = await Promise.all(
-    patients.map(async (pat: any) => {
-      const referralCount = await Referral.countDocuments({
-        $or: [{ patientId: pat._id }, { contactNumber: pat.phone || pat.mobile }],
-      })
-      return {
-        ...pat,
-        _id: pat._id.toString(),
-        referralCount,
-      }
-    })
-  )
+  const patientIds = patients.map((p: any) => p._id)
+  const patientPhones = patients
+    .map((p: any) => p.phone || p.mobile)
+    .filter(Boolean)
+
+  const referralList = await Referral.find({
+    $or: [
+      { patientId: { $in: patientIds } },
+      { contactNumber: { $in: patientPhones } },
+    ],
+  })
+    .select('patientId contactNumber')
+    .lean()
+
+  const countByPatientId = new Map<string, number>()
+  const countByPhone = new Map<string, number>()
+  referralList.forEach((r: any) => {
+    if (r.patientId) {
+      const pid = r.patientId.toString()
+      countByPatientId.set(pid, (countByPatientId.get(pid) || 0) + 1)
+    } else if (r.contactNumber) {
+      countByPhone.set(r.contactNumber, (countByPhone.get(r.contactNumber) || 0) + 1)
+    }
+  })
+
+  const patientsWithReferrals = patients.map((pat: any) => {
+    const pid = pat._id.toString()
+    const phone = pat.phone || pat.mobile
+    const referralCount =
+      (countByPatientId.get(pid) || 0) +
+      (phone ? countByPhone.get(phone) || 0 : 0)
+
+    return {
+      ...pat,
+      _id: pid,
+      referralCount,
+    }
+  })
 
   const doctorOptions = doctors.map((d: any) => ({
     _id: d._id.toString(),

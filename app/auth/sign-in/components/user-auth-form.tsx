@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -50,6 +50,9 @@ export function UserAuthForm({
 
   const redirectUrl = redirectTo ?? '/admin/dashboard'
 
+  useEffect(() => {
+    router.prefetch(redirectUrl)
+  }, [router, redirectUrl])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,8 +63,6 @@ export function UserAuthForm({
   })
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
-
-   
     setIsLoading(true)
 
     const result = await signIn('credentials', {
@@ -72,14 +73,17 @@ export function UserAuthForm({
     })
 
     if (result?.error) {
-       toast.error("Invalid email or password")
+      toast.error("Invalid email or password")
       setIsLoading(false)
       return
     }
 
-    toast.success('Welcome back')
-    setIsLoading(false)
-    router.push(redirectUrl)
+    toast.success('Welcome back! Redirecting to Command Center...')
+    // Keep loading state true so button shows ongoing progress
+    router.replace(redirectUrl)
+    setTimeout(() => {
+      window.location.href = redirectUrl
+    }, 600)
   }
 
   return (
@@ -123,8 +127,8 @@ export function UserAuthForm({
           )}
         />
         <Button type='submit' className='mt-2' disabled={isLoading}>
-          {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          Sign in
+          {isLoading ? <Loader2 className='animate-spin mr-2' /> : <LogIn className='mr-2' />}
+          {isLoading ? 'Signing in & Loading...' : 'Sign in'}
         </Button>
 
         <div className='relative my-2'>

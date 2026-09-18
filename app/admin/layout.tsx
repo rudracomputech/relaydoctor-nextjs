@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 
 import TopLoader from "@/components/top-loader"
 
+import { Suspense } from "react";
+
 export const metadata: Metadata = {
   title: "relaydor Admin Panel",
   description: "Medical Doctor Referral and Collaboration Network Administration",
@@ -21,7 +23,9 @@ export default function RootLayout({
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <TopLoader />
+      <Suspense fallback={null}>
+        <TopLoader />
+      </Suspense>
       <SkipToMain />
       <AppSidebar />
       <div

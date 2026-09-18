@@ -1,44 +1,78 @@
 "use client"
 
 import * as Progress from "@radix-ui/react-progress"
-import { useEffect, useState } from "react"
-import { usePathname } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 
 export default function TopLoader() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [progress, setProgress] = useState(0)
   const [visible, setVisible] = useState(false)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Listen for navigation completions
   useEffect(() => {
-    let timer: NodeJS.Timeout
-
-    // Start loading
-    setVisible(true)
-    setProgress(30)
-
-    timer = setTimeout(() => setProgress(70), 200)
-
-    // Finish loading
-    const done = setTimeout(() => {
+    if (visible) {
       setProgress(100)
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         setVisible(false)
         setProgress(0)
-      }, 300)
-    }, 500)
+      }, 250)
+      return () => clearTimeout(timeout)
+    }
+  }, [pathname, searchParams])
 
+  // Listen for instant clicks on internal links to start loader immediately
+  useEffect(() => {
+    function handleAnchorClick(e: MouseEvent) {
+      const target = (e.target as HTMLElement).closest('a')
+      if (!target) return
+
+      const href = target.getAttribute('href')
+      if (!href) return
+
+      // Skip external links, hash anchors, same page, or new tabs
+      if (
+        href.startsWith('#') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:') ||
+        target.getAttribute('target') === '_blank' ||
+        target.getAttribute('download') !== null
+      ) {
+        return
+      }
+
+      // Check if it's an internal route that differs from current path
+      const currentFull = window.location.pathname + window.location.search
+      if (href === currentFull || href === window.location.pathname) {
+        return
+      }
+
+      // Start loader immediately
+      setVisible(true)
+      setProgress(25)
+
+      if (timerRef.current) clearInterval(timerRef.current)
+
+      timerRef.current = setTimeout(() => {
+        setProgress((prev) => (prev < 80 ? prev + 35 : prev))
+      }, 150)
+    }
+
+    document.addEventListener('click', handleAnchorClick)
     return () => {
-      clearTimeout(timer)
-      clearTimeout(done)
+      document.removeEventListener('click', handleAnchorClick)
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [pathname])
 
   if (!visible) return null
 
   return (
-    <Progress.Root className="fixed top-0 left-0 w-full h-0.5 bg-muted z-50">
+    <Progress.Root className="fixed top-0 left-0 w-full h-[3px] bg-transparent z-[9999] pointer-events-none">
       <Progress.Indicator
-        className="h-full bg-primary transition-all duration-300"
+        className="h-full bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-600 shadow-[0_0_8px_rgba(20,184,166,0.6)] transition-all duration-200 ease-out"
         style={{ width: `${progress}%` }}
       />
     </Progress.Root>
