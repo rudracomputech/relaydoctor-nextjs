@@ -14,6 +14,8 @@ export interface ICoupon extends Document {
   usageCount?: number;
   expiryDate?: Date;
   validUntil?: Date;
+  applicableTo?: 'all' | 'specific';
+  assignedDoctors?: mongoose.Types.ObjectId[];
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -32,6 +34,8 @@ const CouponSchema = new Schema<ICoupon>(
     maxUsageLimit: { type: Number, default: 100 },
     usedCount: { type: Number, default: 0 },
     usageCount: { type: Number, default: 0 },
+    applicableTo: { type: String, enum: ['all', 'specific'], default: 'all' },
+    assignedDoctors: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     expiryDate: { type: Date },
     validUntil: { type: Date },
     isActive: { type: Boolean, default: true },

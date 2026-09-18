@@ -8,9 +8,9 @@ import {
   Wallet,
   Receipt,
   Stethoscope,
-  Activity,
   HeartPulse,
   ShieldCheck,
+  Settings,
 } from "lucide-react"
 
 import { type SidebarData } from "@/components/types"
@@ -53,6 +53,11 @@ export const sidebarData: SidebarData = {
           icon: UserCheck,
         },
         {
+          title: "Specialities",
+          url: "/admin/specialities",
+          icon: Stethoscope,
+        },
+        {
           title: "Patients",
           url: "/admin/patients",
           icon: Users,
@@ -84,6 +89,11 @@ export const sidebarData: SidebarData = {
       title: "Finance & Payouts",
       items: [
         {
+          title: "Doctor Wallets",
+          url: "/admin/wallets",
+          icon: Wallet,
+        },
+        {
           title: "Doctor Withdrawals",
           url: "/admin/withdrawals",
           icon: Wallet,
@@ -97,12 +107,17 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
-      title: "Access Management",
+      title: "Access & System",
       items: [
         {
           title: "Users & Roles",
           url: "/admin/users",
           icon: ShieldCheck,
+        },
+        {
+          title: "Platform Settings",
+          url: "/admin/settings",
+          icon: Settings,
         },
       ],
     },

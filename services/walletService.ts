@@ -1,5 +1,6 @@
 import Wallet from '@/models/Wallet';
 import Transaction from '@/models/Transaction';
+import User from '@/models/User';
 import mongoose from 'mongoose';
 
 export async function creditWallet({
@@ -43,6 +44,11 @@ export async function creditWallet({
   wallet.balance = newAvailable;
   wallet.totalEarnings = newEarnings;
   await wallet.save();
+
+  await User.findByIdAndUpdate(userId, {
+    walletBalance: newAvailable,
+    totalEarnings: newEarnings,
+  });
 
   const transaction = await Transaction.create({
     wallet: wallet._id,
@@ -102,6 +108,10 @@ export async function debitWallet({
   wallet.balance = newAvailable;
   wallet.totalWithdrawn = newWithdrawn;
   await wallet.save();
+
+  await User.findByIdAndUpdate(userId, {
+    walletBalance: newAvailable,
+  });
 
   const transaction = await Transaction.create({
     wallet: wallet._id,

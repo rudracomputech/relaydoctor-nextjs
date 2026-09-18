@@ -5,6 +5,7 @@ import Wallet from '@/models/Wallet';
 import Transaction from '@/models/Transaction';
 import Notification from '@/models/Notification';
 import User from '@/models/User';
+import Setting from '@/models/Setting';
 import { getAuthenticatedDoctor } from '@/lib/jwt';
 
 export async function GET(req: Request, context: any) {
@@ -62,13 +63,29 @@ export async function PATCH(req: Request, context: any) {
     });
     await referral.save();
 
-    // If accepted for the first time, credit referral reward (₹500) to referring doctor's wallet
-    if (status === 'accepted' && oldStatus !== 'accepted') {
-      const bonusAmount = 500;
+    // If accepted for the first time, credit referral reward to referring doctor's wallet
+    if (status === 'accepted' && oldStatus !== 'accepted' && referral.referringDoctorId) {
+      let setting = await Setting.findOne();
+      if (!setting) {
+        setting = { referralRewardType: 'percentage', referralPercentage: 10, referralFlatAmount: 500 } as any;
+      }
+
+      let bonusAmount = 500;
+      const receivingDoctorId = referral.receivingDoctorId || referral.toDoctor;
+      const receivingDoctor = receivingDoctorId ? await User.findById(receivingDoctorId).select('consultationFee') : null;
+      const consultationFee = receivingDoctor?.consultationFee || 500;
+
+      if (setting?.referralRewardType === 'percentage') {
+        const pct = setting.referralPercentage ?? 10;
+        bonusAmount = Math.max(1, Math.round((consultationFee * pct) / 100));
+      } else {
+        bonusAmount = setting?.referralFlatAmount ?? 500;
+      }
+
       await Wallet.findOneAndUpdate(
         { doctorId: referral.referringDoctorId },
         {
-          $inc: { balance: bonusAmount, totalEarnings: bonusAmount },
+          $inc: { balance: bonusAmount, availableBalance: bonusAmount, totalEarnings: bonusAmount },
         },
         { upsert: true }
       );
@@ -78,11 +95,13 @@ export async function PATCH(req: Request, context: any) {
 
       await Transaction.create({
         doctorId: referral.referringDoctorId,
+        user: referral.referringDoctorId,
         type: 'referral_bonus',
         amount: bonusAmount,
         direction: 'credit',
+        transactionType: 'Credit',
         title: 'Referral bonus',
-        description: `Bonus for referral ${referral.ticketNumber} (${referral.patientName})`,
+        description: `Referral reward (${setting?.referralRewardType === 'percentage' ? `${setting.referralPercentage}%` : 'flat'}) for referral ${referral.ticketNumber} (${referral.patientName})`,
         referenceId: referral.ticketNumber,
         status: 'completed',
       });

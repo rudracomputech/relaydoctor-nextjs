@@ -7,7 +7,8 @@ import { jsonError, jsonSuccess } from '@/lib/auth-middleware';
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const { code, planId } = await req.json();
+    const body = await req.json();
+    const { code, planId, doctorId, userId } = body;
 
     if (!code || !planId) {
       return jsonError('Coupon code and Plan ID are required.', 400);
@@ -33,6 +34,19 @@ export async function POST(req: Request) {
 
     if (coupon.usageLimit && (coupon.usedCount || 0) >= coupon.usageLimit) {
       return jsonError('Coupon usage limit exceeded.', 400);
+    }
+
+    const targetDocId = doctorId || userId;
+    if (
+      (coupon.applicableTo === 'specific' || (coupon.assignedDoctors && coupon.assignedDoctors.length > 0)) &&
+      targetDocId
+    ) {
+      const isAssigned = coupon.assignedDoctors?.some(
+        (id: any) => id.toString() === targetDocId.toString()
+      );
+      if (!isAssigned) {
+        return jsonError('This promotional coupon is not valid for your doctor account.', 403);
+      }
     }
 
     const planPrice = plan.price ?? plan.priceMonthly ?? 0;

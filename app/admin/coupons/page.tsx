@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
 import Coupon from "@/models/Coupon"
+import User from "@/models/User"
 
 import { Header } from '@/components/header'
 import { Main } from '@/components/main'
@@ -19,11 +20,32 @@ export default async function CouponsPage() {
 
   await connectToDatabase()
 
-  const coupons = await Coupon.find().sort({ createdAt: -1 }).lean()
+  const coupons = await Coupon.find()
+    .populate('assignedDoctors', 'name email specialization avatar')
+    .sort({ createdAt: -1 })
+    .lean()
+
+  const doctors = await User.find({
+    $or: [{ role: 'doctor' }, { userRole: 'doctor' }],
+  })
+    .select('name email specialization avatar')
+    .sort({ name: 1 })
+    .lean()
+
+  const formattedDoctors = doctors.map((d: any) => ({
+    _id: d._id.toString(),
+    name: d.name,
+    email: d.email,
+    specialization: d.specialization || d.speciality || 'General',
+    avatar: d.avatar || '',
+  }))
 
   const formattedCoupons = coupons.map((c: any) => ({
     ...c,
     _id: c._id.toString(),
+    assignedDoctors: (c.assignedDoctors || []).map((d: any) =>
+      d?._id ? { ...d, _id: d._id.toString() } : d
+    ),
     validUntil: c.validUntil ? new Date(c.validUntil).toISOString() : '',
     expiryDate: c.expiryDate ? new Date(c.expiryDate).toISOString() : '',
   }))
@@ -49,7 +71,7 @@ export default async function CouponsPage() {
           </p>
         </div>
 
-        <CouponsClient initialCoupons={formattedCoupons} />
+        <CouponsClient initialCoupons={formattedCoupons} allDoctors={formattedDoctors} />
       </Main>
     </>
   )

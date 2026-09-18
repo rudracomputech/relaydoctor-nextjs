@@ -6,6 +6,8 @@ import Referral from '@/models/Referral';
 import Wallet from '@/models/Wallet';
 import Transaction from '@/models/Transaction';
 import Notification from '@/models/Notification';
+import Setting from '@/models/Setting';
+import User from '@/models/User';
 
 export async function PATCH(req: Request, context: any) {
   try {
@@ -39,22 +41,54 @@ export async function PATCH(req: Request, context: any) {
     await referral.save();
 
     // If marked accepted by admin, credit referral reward to referring doctor if not already credited
-    if (status === 'accepted' && oldStatus !== 'accepted') {
-      const bonusAmount = 500;
+    if (status === 'accepted' && oldStatus !== 'accepted' && referral.referringDoctorId) {
+      let setting = await Setting.findOne();
+      if (!setting) {
+        setting = { referralRewardType: 'percentage', referralPercentage: 10, referralFlatAmount: 500 } as any;
+      }
+
+      let bonusAmount = 500;
+      const receivingDoctorId = referral.receivingDoctorId || referral.toDoctor;
+      const receivingDoctor = receivingDoctorId ? await User.findById(receivingDoctorId).select('consultationFee') : null;
+      const consultationFee = receivingDoctor?.consultationFee || 500;
+
+      if (setting?.referralRewardType === 'percentage') {
+        const pct = setting.referralPercentage ?? 10;
+        bonusAmount = Math.max(1, Math.round((consultationFee * pct) / 100));
+      } else {
+        bonusAmount = setting?.referralFlatAmount ?? 500;
+      }
+
       await Wallet.findOneAndUpdate(
         { doctorId: referral.referringDoctorId },
-        { $inc: { balance: bonusAmount, totalEarnings: bonusAmount } },
+        { $inc: { balance: bonusAmount, availableBalance: bonusAmount, totalEarnings: bonusAmount } },
         { upsert: true }
       );
+
+      await User.findByIdAndUpdate(referral.referringDoctorId, {
+        $inc: { walletBalance: bonusAmount, totalEarnings: bonusAmount },
+      });
+
       await Transaction.create({
         doctorId: referral.referringDoctorId,
+        user: referral.referringDoctorId,
         type: 'referral_bonus',
         amount: bonusAmount,
         direction: 'credit',
+        transactionType: 'Credit',
         title: 'Referral bonus (Admin Verified)',
-        description: `Bonus for ${referral.ticketNumber}`,
+        description: `Referral bonus (${setting?.referralRewardType === 'percentage' ? `${setting.referralPercentage}%` : 'flat'}) for case ${referral.ticketNumber}`,
         referenceId: referral.ticketNumber,
         status: 'completed',
+      });
+
+      await Notification.create({
+        doctorId: referral.referringDoctorId,
+        title: 'Referral Case Accepted',
+        message: `Your referral case ${referral.ticketNumber} was verified. ₹${bonusAmount} credited to your wallet!`,
+        type: 'referral_accepted',
+        actionData: { referralId: referral._id.toString() },
+        isRead: false,
       });
     }
 

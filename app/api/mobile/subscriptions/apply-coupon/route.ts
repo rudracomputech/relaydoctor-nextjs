@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     await connectToDatabase();
     const body = await req.json();
-    const { code, amount } = body;
+    const { code, amount, doctorId, userId } = body;
 
     if (!code || amount === undefined) {
       return NextResponse.json({ error: 'Coupon code and order amount are required' }, { status: 400 });
@@ -23,6 +23,22 @@ export async function POST(req: Request) {
 
     if (coupon.validUntil && new Date() > coupon.validUntil) {
       return NextResponse.json({ error: 'This coupon has expired' }, { status: 400 });
+    }
+
+    const targetDocId = doctorId || userId;
+    if (
+      (coupon.applicableTo === 'specific' || (coupon.assignedDoctors && coupon.assignedDoctors.length > 0)) &&
+      targetDocId
+    ) {
+      const isAssigned = coupon.assignedDoctors?.some(
+        (id: any) => id.toString() === targetDocId.toString()
+      );
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: 'This coupon is exclusively assigned to specific doctors' },
+          { status: 403 }
+        );
+      }
     }
 
     const orderAmount = Number(amount);

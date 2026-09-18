@@ -15,7 +15,10 @@ export async function GET(req: Request, context: any) {
     const { id } = params
 
     await connectToDatabase()
-    const coupon = await Coupon.findById(id).lean()
+    const coupon = await Coupon.findById(id)
+      .populate('assignedDoctors', 'name email specialization')
+      .lean()
+
     if (!coupon) {
       return NextResponse.json({ error: 'Coupon not found' }, { status: 404 })
     }
@@ -62,6 +65,8 @@ export async function PUT(req: Request, context: any) {
       coupon.usageLimit = Number(body.usageLimit)
       coupon.maxUsageLimit = Number(body.usageLimit)
     }
+    if (body.applicableTo !== undefined) coupon.applicableTo = body.applicableTo
+    if (body.assignedDoctors !== undefined) coupon.assignedDoctors = body.assignedDoctors
     if (body.validUntil !== undefined) {
       coupon.validUntil = body.validUntil ? new Date(body.validUntil) : undefined
       coupon.expiryDate = body.validUntil ? new Date(body.validUntil) : undefined
@@ -70,11 +75,15 @@ export async function PUT(req: Request, context: any) {
 
     await coupon.save()
 
+    const populated = await Coupon.findById(coupon._id)
+      .populate('assignedDoctors', 'name email specialization')
+      .lean()
+
     return NextResponse.json({
       success: true,
       data: {
-        ...coupon.toObject(),
-        _id: coupon._id.toString(),
+        ...(populated as any),
+        _id: (populated as any)._id.toString(),
       },
     })
   } catch (error: any) {

@@ -516,6 +516,29 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
     }
   }
 
+  async function handleToggleVerification(doctor: DoctorItem) {
+    try {
+      const newStatus = !doctor.isVerified
+      const res = await fetch(`/api/admin/doctors/${doctor._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isVerified: newStatus }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to update verification status')
+
+      setData((prev) =>
+        prev.map((d) => (d._id === doctor._id ? { ...d, isVerified: newStatus } : d))
+      )
+      if (viewItem && viewItem._id === doctor._id) {
+        setViewItem({ ...viewItem, isVerified: newStatus })
+      }
+      toast.success(`Dr. ${doctor.name} marked as ${newStatus ? 'Verified' : 'Not Verified'}`)
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
   const columns = useMemo<ColumnDef<DoctorItem>[]>(
     () => [
       {
@@ -747,9 +770,13 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
             </Badge>
           ) : (
             <Badge variant='outline' className='bg-amber-50 text-amber-700 border-amber-300 text-xs'>
-              Pending
+              Not Verified
             </Badge>
           )
+        },
+        filterFn: (row, id, value) => {
+          const isVer = Boolean(row.getValue(id))
+          return value.includes(String(isVer))
         },
       },
       {
@@ -772,6 +799,19 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                   <Pencil className='mr-2 h-4 w-4 text-muted-foreground' />
                   Edit Profile Fields
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleToggleVerification(doc)}>
+                  {doc.isVerified ? (
+                    <>
+                      <XCircle className='mr-2 h-4 w-4 text-amber-600' />
+                      Mark as Not Verified
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className='mr-2 h-4 w-4 text-emerald-600' />
+                      Mark as Verified
+                    </>
+                  )}
+                </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
                 <div className='px-2 py-1 text-[10px] uppercase font-semibold text-muted-foreground'>
@@ -787,6 +827,17 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                     {opt.label}
                   </DropdownMenuItem>
                 ))}
+
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    window.location.href = '/admin/wallets'
+                  }}
+                  className='text-teal-700 dark:text-teal-400'
+                >
+                  <Wallet className='mr-2 h-4 w-4' />
+                  Manage Wallet
+                </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -896,6 +947,14 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
               { label: '5 - 10 Years', value: '5 - 10 Years' },
               { label: '10 - 15 Years', value: '10 - 15 Years' },
               { label: '15+ Years', value: '15+ Years' },
+            ],
+          },
+          {
+            columnId: 'isVerified',
+            title: 'Verification',
+            options: [
+              { label: 'Verified', value: 'true' },
+              { label: 'Not Verified', value: 'false' },
             ],
           },
           {

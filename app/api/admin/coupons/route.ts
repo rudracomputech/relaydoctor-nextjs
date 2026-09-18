@@ -12,11 +12,17 @@ export async function GET() {
     }
 
     await connectToDatabase()
-    const coupons = await Coupon.find().sort({ createdAt: -1 }).lean()
+    const coupons = await Coupon.find()
+      .populate('assignedDoctors', 'name email specialization')
+      .sort({ createdAt: -1 })
+      .lean()
 
     const formattedCoupons = coupons.map((c: any) => ({
       ...c,
       _id: c._id.toString(),
+      assignedDoctors: (c.assignedDoctors || []).map((d: any) =>
+        d?._id ? { ...d, _id: d._id.toString() } : d
+      ),
     }))
 
     return NextResponse.json({ success: true, data: formattedCoupons })
@@ -43,6 +49,8 @@ export async function POST(req: Request) {
       maxDiscount,
       usageLimit,
       validUntil,
+      applicableTo,
+      assignedDoctors,
       isActive,
     } = body
 
@@ -72,18 +80,22 @@ export async function POST(req: Request) {
       maxUsageLimit: usageLimit ? Number(usageLimit) : 100,
       usageCount: 0,
       usedCount: 0,
+      applicableTo: applicableTo || (assignedDoctors && assignedDoctors.length > 0 ? 'specific' : 'all'),
+      assignedDoctors: assignedDoctors || [],
       validUntil: validUntil ? new Date(validUntil) : undefined,
       expiryDate: validUntil ? new Date(validUntil) : undefined,
       isActive: isActive !== undefined ? Boolean(isActive) : true,
     })
 
-    const couponObj = (coupon as any).toObject ? (coupon as any).toObject() : coupon
+    const populated = await Coupon.findById(coupon._id)
+      .populate('assignedDoctors', 'name email specialization')
+      .lean()
 
     return NextResponse.json({
       success: true,
       data: {
-        ...couponObj,
-        _id: couponObj._id.toString(),
+        ...(populated as any),
+        _id: (populated as any)._id.toString(),
       },
     }, { status: 201 })
   } catch (error: any) {

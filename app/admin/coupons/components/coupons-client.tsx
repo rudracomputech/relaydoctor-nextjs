@@ -83,7 +83,19 @@ import {
   Tag,
   Percent,
   Calendar,
+  Users,
+  UserCheck,
+  Stethoscope,
+  Search,
 } from 'lucide-react'
+
+export interface DoctorSummary {
+  _id: string
+  name: string
+  email: string
+  specialization?: string
+  avatar?: string
+}
 
 export interface CouponItem {
   _id: string
@@ -98,14 +110,24 @@ export interface CouponItem {
   maxUsageLimit?: number
   usageCount?: number
   usedCount?: number
+  applicableTo?: 'all' | 'specific'
+  assignedDoctors?: DoctorSummary[]
   validUntil?: string
   expiryDate?: string
   isActive: boolean
   createdAt?: string
 }
 
-export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[] }) {
+export function CouponsClient({
+  initialCoupons,
+  allDoctors = [],
+}: {
+  initialCoupons: CouponItem[]
+  allDoctors?: DoctorSummary[]
+}) {
   const [data, setData] = useState<CouponItem[]>(initialCoupons)
+  const [doctorsList, setDoctorsList] = useState<DoctorSummary[]>(allDoctors)
+  const [doctorSearch, setDoctorSearch] = useState('')
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -128,6 +150,8 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
     minOrderAmount: 999,
     maxDiscount: 1000,
     usageLimit: 100,
+    applicableTo: 'all' as 'all' | 'specific',
+    assignedDoctors: [] as string[],
     validUntil: '',
     isActive: true,
   })
@@ -141,9 +165,12 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
       minOrderAmount: 999,
       maxDiscount: 1000,
       usageLimit: 100,
+      applicableTo: 'all',
+      assignedDoctors: [],
       validUntil: '',
       isActive: true,
     })
+    setDoctorSearch('')
   }
 
   function handleOpenCreate() {
@@ -156,6 +183,10 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
       ? new Date(coupon.validUntil || coupon.expiryDate!).toISOString().split('T')[0]
       : ''
 
+    const rawDocs = coupon.assignedDoctors || []
+    const docIds = rawDocs.map((d: any) => (typeof d === 'string' ? d : d._id))
+    const isSpecific = coupon.applicableTo === 'specific' || docIds.length > 0
+
     setFormData({
       code: coupon.code || '',
       description: coupon.description || '',
@@ -164,9 +195,12 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
       minOrderAmount: coupon.minOrderAmount || coupon.minimumAmount || 0,
       maxDiscount: coupon.maxDiscount || 0,
       usageLimit: coupon.usageLimit || coupon.maxUsageLimit || 100,
+      applicableTo: isSpecific ? 'specific' : 'all',
+      assignedDoctors: docIds,
       validUntil: formattedDate,
       isActive: coupon.isActive ?? true,
     })
+    setDoctorSearch('')
     setEditItem(coupon)
   }
 
@@ -345,6 +379,40 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
             <div className='text-xs font-mono'>
               <span className='font-semibold text-foreground'>{used}</span>
               <span className='text-muted-foreground'> / {limit} uses</span>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'assignedDoctors',
+        header: 'Target Audience',
+        cell: ({ row }) => {
+          const coupon = row.original
+          const isSpecific =
+            coupon.applicableTo === 'specific' ||
+            (coupon.assignedDoctors && coupon.assignedDoctors.length > 0)
+          const docs = coupon.assignedDoctors || []
+
+          if (!isSpecific || docs.length === 0) {
+            return (
+              <Badge
+                variant='outline'
+                className='bg-emerald-50 text-emerald-700 border-emerald-200 text-xs flex items-center gap-1 w-fit'
+              >
+                <Users className='h-3 w-3' /> All Doctors
+              </Badge>
+            )
+          }
+
+          return (
+            <div className='flex items-center gap-1.5'>
+              <Badge
+                variant='outline'
+                className='bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-mono font-medium flex items-center gap-1'
+              >
+                <UserCheck className='h-3 w-3' />
+                {docs.length} Doctor{docs.length > 1 ? 's' : ''} Assigned
+              </Badge>
             </div>
           )
         },
@@ -684,6 +752,157 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
               />
             </div>
 
+            {/* Target Audience / Doctor Assignment */}
+            <div className='space-y-2.5 p-3.5 border rounded-xl bg-muted/20'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <Label className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+                    Doctor Eligibility
+                  </Label>
+                  <p className='text-xs text-muted-foreground mt-0.5'>
+                    Restrict this coupon to selected specialists or make it global.
+                  </p>
+                </div>
+                <Badge variant='outline' className='font-mono text-xs'>
+                  {formData.applicableTo === 'all'
+                    ? 'All Doctors'
+                    : `${formData.assignedDoctors.length} Selected`}
+                </Badge>
+              </div>
+
+              <div className='grid grid-cols-2 gap-2 pt-1'>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={formData.applicableTo === 'all' ? 'default' : 'outline'}
+                  onClick={() =>
+                    setFormData({ ...formData, applicableTo: 'all', assignedDoctors: [] })
+                  }
+                  className={
+                    formData.applicableTo === 'all'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : ''
+                  }
+                >
+                  <Users className='h-3.5 w-3.5 mr-1.5' /> All Doctors
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={formData.applicableTo === 'specific' ? 'default' : 'outline'}
+                  onClick={() => setFormData({ ...formData, applicableTo: 'specific' })}
+                  className={
+                    formData.applicableTo === 'specific'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : ''
+                  }
+                >
+                  <UserCheck className='h-3.5 w-3.5 mr-1.5' /> Specific Doctors
+                </Button>
+              </div>
+
+              {formData.applicableTo === 'specific' && (
+                <div className='space-y-2 pt-2 border-t mt-2'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div className='relative flex-1'>
+                      <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground' />
+                      <Input
+                        placeholder='Search doctors by name or speciality...'
+                        value={doctorSearch}
+                        onChange={(e) => setDoctorSearch(e.target.value)}
+                        className='h-8 text-xs pl-8'
+                      />
+                    </div>
+                    <div className='flex gap-1'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            assignedDoctors: doctorsList.map((d) => d._id),
+                          })
+                        }
+                        className='h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground'
+                      >
+                        All
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => setFormData({ ...formData, assignedDoctors: [] })}
+                        className='h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground'
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className='max-h-40 overflow-y-auto rounded-lg border bg-background divide-y'>
+                    {doctorsList.length === 0 ? (
+                      <div className='p-3 text-center text-xs text-muted-foreground'>
+                        No registered doctors found.
+                      </div>
+                    ) : (
+                      doctorsList
+                        .filter(
+                          (d) =>
+                            d.name.toLowerCase().includes(doctorSearch.toLowerCase()) ||
+                            d.email.toLowerCase().includes(doctorSearch.toLowerCase()) ||
+                            (d.specialization || '').toLowerCase().includes(doctorSearch.toLowerCase())
+                        )
+                        .map((doc) => {
+                          const isSelected = formData.assignedDoctors.includes(doc._id)
+                          return (
+                            <div
+                              key={doc._id}
+                              onClick={() => {
+                                const updated = isSelected
+                                  ? formData.assignedDoctors.filter((id) => id !== doc._id)
+                                  : [...formData.assignedDoctors, doc._id]
+                                setFormData({ ...formData, assignedDoctors: updated })
+                              }}
+                              className='flex items-center justify-between p-2 hover:bg-muted/40 cursor-pointer text-xs'
+                            >
+                              <div className='flex items-center gap-2 min-w-0'>
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => {}}
+                                  className='pointer-events-none'
+                                />
+                                <div className='min-w-0'>
+                                  <div className='font-medium text-foreground truncate flex items-center gap-1.5'>
+                                    <span>{doc.name}</span>
+                                    {doc.specialization && (
+                                      <span className='text-[10px] text-muted-foreground font-mono'>
+                                        ({doc.specialization})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className='text-[11px] text-muted-foreground truncate'>
+                                    {doc.email}
+                                  </div>
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <Badge
+                                  variant='outline'
+                                  className='text-[10px] bg-amber-50 text-amber-700 border-amber-200 shrink-0'
+                                >
+                                  Assigned
+                                </Badge>
+                              )}
+                            </div>
+                          )
+                        })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className='flex items-center justify-between p-3 border rounded-lg bg-muted/30'>
               <div>
                 <Label htmlFor='cpn-active' className='font-medium cursor-pointer'>
@@ -801,6 +1020,157 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
                 />
               </div>
 
+              {/* Target Audience / Doctor Assignment in Edit */}
+              <div className='space-y-2.5 p-3.5 border rounded-xl bg-muted/20'>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+                      Doctor Eligibility
+                    </Label>
+                    <p className='text-xs text-muted-foreground mt-0.5'>
+                      Restrict this coupon to selected specialists or make it global.
+                    </p>
+                  </div>
+                  <Badge variant='outline' className='font-mono text-xs'>
+                    {formData.applicableTo === 'all'
+                      ? 'All Doctors'
+                      : `${formData.assignedDoctors.length} Selected`}
+                  </Badge>
+                </div>
+
+                <div className='grid grid-cols-2 gap-2 pt-1'>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={formData.applicableTo === 'all' ? 'default' : 'outline'}
+                    onClick={() =>
+                      setFormData({ ...formData, applicableTo: 'all', assignedDoctors: [] })
+                    }
+                    className={
+                      formData.applicableTo === 'all'
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : ''
+                    }
+                  >
+                    <Users className='h-3.5 w-3.5 mr-1.5' /> All Doctors
+                  </Button>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={formData.applicableTo === 'specific' ? 'default' : 'outline'}
+                    onClick={() => setFormData({ ...formData, applicableTo: 'specific' })}
+                    className={
+                      formData.applicableTo === 'specific'
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : ''
+                    }
+                  >
+                    <UserCheck className='h-3.5 w-3.5 mr-1.5' /> Specific Doctors
+                  </Button>
+                </div>
+
+                {formData.applicableTo === 'specific' && (
+                  <div className='space-y-2 pt-2 border-t mt-2'>
+                    <div className='flex items-center justify-between gap-2'>
+                      <div className='relative flex-1'>
+                        <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground' />
+                        <Input
+                          placeholder='Search doctors by name or speciality...'
+                          value={doctorSearch}
+                          onChange={(e) => setDoctorSearch(e.target.value)}
+                          className='h-8 text-xs pl-8'
+                        />
+                      </div>
+                      <div className='flex gap-1'>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              assignedDoctors: doctorsList.map((d) => d._id),
+                            })
+                          }
+                          className='h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground'
+                        >
+                          All
+                        </Button>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => setFormData({ ...formData, assignedDoctors: [] })}
+                          className='h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground'
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className='max-h-40 overflow-y-auto rounded-lg border bg-background divide-y'>
+                      {doctorsList.length === 0 ? (
+                        <div className='p-3 text-center text-xs text-muted-foreground'>
+                          No registered doctors found.
+                        </div>
+                      ) : (
+                        doctorsList
+                          .filter(
+                            (d) =>
+                              d.name.toLowerCase().includes(doctorSearch.toLowerCase()) ||
+                              d.email.toLowerCase().includes(doctorSearch.toLowerCase()) ||
+                              (d.specialization || '').toLowerCase().includes(doctorSearch.toLowerCase())
+                          )
+                          .map((doc) => {
+                            const isSelected = formData.assignedDoctors.includes(doc._id)
+                            return (
+                              <div
+                                key={doc._id}
+                                onClick={() => {
+                                  const updated = isSelected
+                                    ? formData.assignedDoctors.filter((id) => id !== doc._id)
+                                    : [...formData.assignedDoctors, doc._id]
+                                  setFormData({ ...formData, assignedDoctors: updated })
+                                }}
+                                className='flex items-center justify-between p-2 hover:bg-muted/40 cursor-pointer text-xs'
+                              >
+                                <div className='flex items-center gap-2 min-w-0'>
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => {}}
+                                    className='pointer-events-none'
+                                  />
+                                  <div className='min-w-0'>
+                                    <div className='font-medium text-foreground truncate flex items-center gap-1.5'>
+                                      <span>{doc.name}</span>
+                                      {doc.specialization && (
+                                        <span className='text-[10px] text-muted-foreground font-mono'>
+                                          ({doc.specialization})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className='text-[11px] text-muted-foreground truncate'>
+                                      {doc.email}
+                                    </div>
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <Badge
+                                    variant='outline'
+                                    className='text-[10px] bg-amber-50 text-amber-700 border-amber-200 shrink-0'
+                                  >
+                                    Assigned
+                                  </Badge>
+                                )}
+                              </div>
+                            )
+                          })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className='flex items-center justify-between p-3 border rounded-lg bg-muted/30'>
                 <Label htmlFor='edit-cpn-active' className='font-medium cursor-pointer'>
                   Active Status
@@ -865,6 +1235,40 @@ export function CouponsClient({ initialCoupons }: { initialCoupons: CouponItem[]
                     {viewItem.usageLimit || viewItem.maxUsageLimit || 100}
                   </span>
                 </div>
+              </div>
+
+              <div className='p-3 bg-muted/40 rounded-lg text-xs space-y-1.5'>
+                <div className='flex items-center justify-between'>
+                  <span className='font-semibold text-foreground flex items-center gap-1.5'>
+                    <Users className='h-3.5 w-3.5 text-amber-600' />
+                    Target Audience
+                  </span>
+                  <Badge variant='outline' className='text-[10px]'>
+                    {viewItem.applicableTo === 'specific'
+                      ? `${viewItem.assignedDoctors?.length || 0} Doctors Assigned`
+                      : 'All Doctors'}
+                  </Badge>
+                </div>
+                {viewItem.applicableTo === 'specific' && (
+                  <div className='pt-1 max-h-32 overflow-y-auto space-y-1'>
+                    {viewItem.assignedDoctors && viewItem.assignedDoctors.length > 0 ? (
+                      viewItem.assignedDoctors.map((doc: any) => (
+                        <div
+                          key={doc._id || doc}
+                          className='text-[11px] text-muted-foreground flex items-center gap-1.5'
+                        >
+                          <span className='h-1.5 w-1.5 rounded-full bg-amber-500'></span>
+                          <span className='font-medium text-foreground'>{doc.name || 'Doctor'}</span>
+                          {doc.specialization && <span>({doc.specialization})</span>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className='text-muted-foreground italic text-[11px]'>
+                        No specific doctors assigned.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className='pt-2'>
