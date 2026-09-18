@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { connectToDatabase } from '@/lib/mongodb'
 import User from '@/models/User'
 import Referral from '@/models/Referral'
+import Wallet from '@/models/Wallet'
 
 export async function GET() {
   try {
@@ -21,15 +22,39 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean()
 
+    const doctorIds = doctors.map((d: any) => d._id)
+    const wallets = await Wallet.find({
+      $or: [
+        { doctorId: { $in: doctorIds } },
+        { user: { $in: doctorIds } },
+      ],
+    }).lean()
+
+    const walletMap = new Map()
+    wallets.forEach((w: any) => {
+      if (w.doctorId) walletMap.set(w.doctorId.toString(), w)
+      if (w.user) walletMap.set(w.user.toString(), w)
+    })
+
     const doctorsWithStats = await Promise.all(
       doctors.map(async (doc: any) => {
+        const docIdStr = doc._id.toString()
+        const docWallet = walletMap.get(docIdStr)
         const [sentReferrals, receivedReferrals] = await Promise.all([
           Referral.countDocuments({ referringDoctorId: doc._id }),
           Referral.countDocuments({ receivingDoctorId: doc._id }),
         ])
         return {
           ...doc,
-          _id: doc._id.toString(),
+          _id: docIdStr,
+          walletBalance: docWallet
+            ? (docWallet.availableBalance ?? docWallet.balance ?? 0)
+            : (doc.walletBalance ?? 0),
+          totalEarnings: docWallet
+            ? (docWallet.totalEarnings ?? 0)
+            : (doc.totalEarnings ?? 0),
+          pendingBalance: docWallet ? (docWallet.pendingBalance ?? 0) : 0,
+          totalWithdrawn: docWallet ? (docWallet.totalWithdrawn ?? 0) : 0,
           sentReferrals,
           receivedReferrals,
         }

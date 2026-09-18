@@ -89,6 +89,8 @@ Most endpoints require Bearer JWT authentication.
           availabilityStatus: { type: 'string', example: 'Available For Call' },
           walletBalance: { type: 'number', example: 4500 },
           totalEarnings: { type: 'number', example: 28500 },
+          pendingBalance: { type: 'number', example: 500 },
+          totalWithdrawn: { type: 'number', example: 24000 },
         },
       },
       Patient: {

@@ -90,6 +90,10 @@ import {
   CalendarDays,
   User,
   Trash,
+  Coins,
+  TrendingUp,
+  ArrowDownUp,
+  ExternalLink,
 } from 'lucide-react'
 
 export interface EducationItem {
@@ -134,6 +138,9 @@ export interface DoctorItem {
   sentReferrals?: number
   receivedReferrals?: number
   walletBalance?: number
+  totalEarnings?: number
+  pendingBalance?: number
+  totalWithdrawn?: number
   createdAt?: string
 }
 
@@ -237,6 +244,14 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
   const [viewItem, setViewItem] = useState<DoctorItem | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Doctor Wallet Adjust States
+  const [adjustDoc, setAdjustDoc] = useState<DoctorItem | null>(null)
+  const [adjustAction, setAdjustAction] = useState<'credit' | 'debit'>('credit')
+  const [adjustAmount, setAdjustAmount] = useState('')
+  const [adjustType, setAdjustType] = useState('Referral Bonus')
+  const [adjustNote, setAdjustNote] = useState('')
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false)
 
   // Form state for Create/Edit matching attached screenshot
   const [formData, setFormData] = useState({
@@ -539,6 +554,78 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
     }
   }
 
+  function handleOpenAdjustModal(doctor: DoctorItem) {
+    setAdjustDoc(doctor)
+    setAdjustAction('credit')
+    setAdjustAmount('')
+    setAdjustType('Referral Bonus')
+    setAdjustNote('')
+  }
+
+  async function handleSubmitAdjust(e: React.FormEvent) {
+    e.preventDefault()
+    if (!adjustDoc) return
+    const amt = Number(adjustAmount)
+    if (!amt || amt <= 0) {
+      toast.error('Please enter a valid positive amount')
+      return
+    }
+
+    try {
+      setAdjustSubmitting(true)
+      const res = await fetch('/api/admin/wallets/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorId: adjustDoc._id,
+          action: adjustAction,
+          amount: amt,
+          type: adjustType,
+          description: adjustNote || `Manual ${adjustAction} by admin`,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to adjust balance')
+
+      const newBalance = json.data?.balance ?? 0
+      const newTotalEarnings = json.data?.totalEarnings ?? adjustDoc.totalEarnings ?? 0
+
+      setData((prev) =>
+        prev.map((d) =>
+          d._id === adjustDoc._id
+            ? {
+                ...d,
+                walletBalance: newBalance,
+                totalEarnings: newTotalEarnings,
+              }
+            : d
+        )
+      )
+
+      if (viewItem && viewItem._id === adjustDoc._id) {
+        setViewItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                walletBalance: newBalance,
+                totalEarnings: newTotalEarnings,
+              }
+            : null
+        )
+      }
+
+      toast.success(
+        `Successfully ${adjustAction === 'credit' ? 'credited' : 'debited'} ₹${amt.toLocaleString('en-IN')} for Dr. ${adjustDoc.name}`
+      )
+      setAdjustDoc(null)
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setAdjustSubmitting(false)
+    }
+  }
+
   const columns = useMemo<ColumnDef<DoctorItem>[]>(
     () => [
       {
@@ -760,6 +847,23 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
         },
       },
       {
+        accessorKey: 'walletBalance',
+        header: ({ column }) => <DataTableColumnHeader column={column} title='Wallet Balance' />,
+        cell: ({ row }) => {
+          const bal = Number(row.getValue('walletBalance')) || 0
+          return (
+            <div className='flex items-center gap-1.5'>
+              <Badge
+                variant='outline'
+                className='font-mono font-semibold text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
+              >
+                ₹{bal.toLocaleString('en-IN')}
+              </Badge>
+            </div>
+          )
+        },
+      },
+      {
         accessorKey: 'isVerified',
         header: ({ column }) => <DataTableColumnHeader column={column} title='Verification' />,
         cell: ({ row }) => {
@@ -830,8 +934,15 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={() => handleOpenAdjustModal(doc)}
+                  className='text-emerald-700 dark:text-emerald-400'
+                >
+                  <ArrowDownUp className='mr-2 h-4 w-4' />
+                  Adjust Balance
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => {
-                    window.location.href = '/admin/wallets'
+                    window.location.href = `/admin/wallets?search=${encodeURIComponent(doc.name)}`
                   }}
                   className='text-teal-700 dark:text-teal-400'
                 >
@@ -1450,6 +1561,77 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                 </div>
               </div>
 
+              {/* Doctor Wallet & Financial Health Section */}
+              <div className='p-4 border border-emerald-500/30 rounded-xl bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-background dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-card space-y-3 shadow-xs'>
+                <div className='flex items-center justify-between border-b border-emerald-200/50 dark:border-emerald-800/40 pb-2'>
+                  <div className='flex items-center gap-2 font-bold text-foreground text-sm'>
+                    <div className='h-7 w-7 rounded-lg bg-emerald-600/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400 flex items-center justify-center'>
+                      <Wallet className='h-4 w-4' />
+                    </div>
+                    <span>Doctor Wallet & Financial Health</span>
+                  </div>
+                  <Badge variant='outline' className='bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 text-[11px] font-medium flex items-center gap-1.5 py-0.5 px-2'>
+                    <span className='h-2 w-2 rounded-full bg-emerald-500 animate-pulse' />
+                    Active Wallet
+                  </Badge>
+                </div>
+
+                <div className='grid grid-cols-2 gap-2.5'>
+                  {/* Current Available Balance */}
+                  <div className='p-3 bg-card border border-emerald-200/70 dark:border-emerald-900/60 rounded-xl shadow-xs'>
+                    <span className='text-muted-foreground text-[11px] font-medium flex items-center gap-1'>
+                      <Coins className='h-3 w-3 text-emerald-600 dark:text-emerald-400' /> Available Balance
+                    </span>
+                    <span className='text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400 mt-0.5 block'>
+                      ₹{(viewItem.walletBalance || 0).toLocaleString('en-IN')}
+                    </span>
+                    <span className='text-[10px] text-muted-foreground'>Ready for payouts & withdraw</span>
+                  </div>
+
+                  {/* Total Lifetime Earnings */}
+                  <div className='p-3 bg-card border border-teal-200/70 dark:border-teal-900/60 rounded-xl shadow-xs'>
+                    <span className='text-muted-foreground text-[11px] font-medium flex items-center gap-1'>
+                      <TrendingUp className='h-3 w-3 text-teal-600 dark:text-teal-400' /> Total Earnings
+                    </span>
+                    <span className='text-xl font-bold font-mono text-teal-700 dark:text-teal-400 mt-0.5 block'>
+                      ₹{(viewItem.totalEarnings || 0).toLocaleString('en-IN')}
+                    </span>
+                    <span className='text-[10px] text-muted-foreground'>Accumulated referral rewards</span>
+                  </div>
+                </div>
+
+                {/* Referral Flow & Action Buttons */}
+                <div className='flex items-center justify-between pt-1 gap-2 flex-wrap'>
+                  <div className='text-[11px] text-muted-foreground'>
+                    Referral Flow: <strong className='text-foreground'>{viewItem.sentReferrals ?? 0} sent</strong> &bull; <strong className='text-foreground'>{viewItem.receivedReferrals ?? 0} received</strong>
+                  </div>
+                  <div className='flex items-center gap-1.5'>
+                    <Button
+                      type='button'
+                      size='sm'
+                      variant='outline'
+                      className='h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40 gap-1'
+                      onClick={() => handleOpenAdjustModal(viewItem)}
+                    >
+                      <ArrowDownUp className='h-3 w-3' />
+                      Adjust Balance
+                    </Button>
+                    <Button
+                      type='button'
+                      size='sm'
+                      variant='ghost'
+                      className='h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2'
+                      onClick={() => {
+                        window.location.href = `/admin/wallets?search=${encodeURIComponent(viewItem.name)}`
+                      }}
+                    >
+                      <ExternalLink className='h-3 w-3' />
+                      Manage Wallet
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
               {/* Section 1: Basic Detail */}
               <div className='p-4 border rounded-xl bg-card space-y-2.5 text-xs'>
                 <div className='flex items-center gap-1.5 font-bold text-foreground text-sm border-b pb-1.5'>
@@ -1648,6 +1830,147 @@ export function DoctorsClient({ initialDoctors }: { initialDoctors: DoctorItem[]
                 <Pencil className='mr-1.5 h-4 w-4' /> Edit Doctor Profile
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Adjust Doctor Wallet Dialog */}
+      {adjustDoc && (
+        <Dialog open={!!adjustDoc} onOpenChange={(open) => !open && setAdjustDoc(null)}>
+          <DialogContent className='max-w-md'>
+            <DialogHeader>
+              <DialogTitle className='flex items-center gap-2'>
+                <div className='p-1.5 rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-300'>
+                  <Wallet className='h-4 w-4' />
+                </div>
+                <span>Adjust Doctor Wallet</span>
+              </DialogTitle>
+              <DialogDescription>
+                Directly adjust wallet balance for <strong>Dr. {adjustDoc.name}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmitAdjust} className='space-y-4 pt-1'>
+              <div className='grid grid-cols-2 gap-2'>
+                <Button
+                  type='button'
+                  variant={adjustAction === 'credit' ? 'default' : 'outline'}
+                  className={
+                    adjustAction === 'credit'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold'
+                      : 'border-muted-foreground/30'
+                  }
+                  onClick={() => setAdjustAction('credit')}
+                >
+                  + Credit (Add)
+                </Button>
+                <Button
+                  type='button'
+                  variant={adjustAction === 'debit' ? 'destructive' : 'outline'}
+                  className={
+                    adjustAction === 'debit'
+                      ? 'font-semibold'
+                      : 'border-muted-foreground/30'
+                  }
+                  onClick={() => setAdjustAction('debit')}
+                >
+                  - Debit (Deduct)
+                </Button>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='adjust-amount'>Amount (₹)</Label>
+                <div className='relative'>
+                  <span className='absolute left-3 top-2.5 text-muted-foreground font-mono font-semibold'>₹</span>
+                  <Input
+                    id='adjust-amount'
+                    type='number'
+                    min='1'
+                    step='any'
+                    className='pl-8 font-mono text-base'
+                    placeholder='1000'
+                    value={adjustAmount}
+                    onChange={(e) => setAdjustAmount(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='adjust-type'>Adjustment Category</Label>
+                <Select value={adjustType} onValueChange={setAdjustType}>
+                  <SelectTrigger id='adjust-type'>
+                    <SelectValue placeholder='Select category' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='Referral Bonus'>Referral Bonus</SelectItem>
+                    <SelectItem value='Consultation Settlement'>Consultation Settlement</SelectItem>
+                    <SelectItem value='Administrative Adjustment'>Administrative Adjustment</SelectItem>
+                    <SelectItem value='Correction'>Correction / Rectification</SelectItem>
+                    <SelectItem value='Bonus'>Special Incentive / Bonus</SelectItem>
+                    <SelectItem value='Penalty'>Penalty / Deduction</SelectItem>
+                    <SelectItem value='Other'>Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='adjust-note'>Reason / Audit Memo</Label>
+                <Input
+                  id='adjust-note'
+                  placeholder='e.g. Referral settlement for case #RF-809'
+                  value={adjustNote}
+                  onChange={(e) => setAdjustNote(e.target.value)}
+                />
+              </div>
+
+              {/* Real-time projected preview */}
+              <div className='p-3 bg-muted/50 rounded-xl border space-y-1.5 text-xs'>
+                <div className='flex justify-between text-muted-foreground'>
+                  <span>Current Balance:</span>
+                  <span className='font-mono font-medium'>₹{(adjustDoc.walletBalance || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div className='flex justify-between text-muted-foreground'>
+                  <span>Adjustment:</span>
+                  <span
+                    className={`font-mono font-medium ${
+                      adjustAction === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {adjustAction === 'credit' ? '+' : '-'}₹{(Number(adjustAmount) || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className='flex justify-between pt-1.5 border-t font-semibold text-foreground text-sm'>
+                  <span>Projected Balance:</span>
+                  <span className='font-mono text-teal-700 dark:text-teal-400'>
+                    ₹{Math.max(
+                      0,
+                      adjustAction === 'credit'
+                        ? (adjustDoc.walletBalance || 0) + (Number(adjustAmount) || 0)
+                        : (adjustDoc.walletBalance || 0) - (Number(adjustAmount) || 0)
+                    ).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              <DialogFooter className='gap-2 pt-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => setAdjustDoc(null)}
+                  disabled={adjustSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type='submit'
+                  className='bg-teal-600 hover:bg-teal-700'
+                  disabled={adjustSubmitting || !adjustAmount || Number(adjustAmount) <= 0}
+                >
+                  {adjustSubmitting ? 'Processing...' : `Confirm ${adjustAction === 'credit' ? 'Credit' : 'Debit'}`}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       )}
