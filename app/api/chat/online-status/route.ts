@@ -9,9 +9,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const status = body.status || (body.isOnline ? 'online' : 'offline');
 
-    return jsonSuccess({ status }, `Status updated to ${status}`, 200);
+    return jsonSuccess({ status }, `Status updated to ${status}`, 200, { status });
   } catch (error: any) {
     console.error('Update Online Status Error:', error);
     return jsonError(error?.message || 'Server error', 500);
   }
 }
+
+export const PUT = POST;
+export const PATCH = POST;

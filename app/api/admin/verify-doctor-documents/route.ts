@@ -8,7 +8,10 @@ export async function PUT(req: Request) {
     const { user, errorResponse } = await authenticateRequest(req, ['admin']);
     if (errorResponse) return errorResponse;
 
-    const { doctorId, verificationStatus, rejectReason } = await req.json();
+    const body = await req.json();
+    const doctorId = body.doctorId || body.id;
+    const verificationStatus = (body.verificationStatus || body.status || '').toLowerCase();
+    const rejectReason = body.rejectReason || body.reason || '';
 
     if (!doctorId || !verificationStatus) {
       return jsonError('doctorId and verificationStatus are required.', 400);
@@ -23,27 +26,21 @@ export async function PUT(req: Request) {
       return jsonError('Doctor user not found.', 404);
     }
 
-    const role = doctor.userRole || doctor.role;
-    if (role !== 'doctor') {
-      return jsonError('User is not a doctor.', 400);
-    }
-
-    doctor.documentVerification = verificationStatus;
+    doctor.documentVerification = verificationStatus as any;
 
     let emailSubject = '';
     let emailMessage = '';
 
     if (verificationStatus === 'rejected') {
-      if (!rejectReason) {
-        return jsonError('rejectReason is required when rejecting documents.', 400);
-      }
-      doctor.documentRejectReason = rejectReason;
+      doctor.documentRejectReason = rejectReason || 'Documents did not meet verification criteria.';
       emailSubject = 'Document Verification - Action Required';
-      emailMessage = `Dear Dr. ${doctor.name},\n\nWe regret to inform you that your submitted documents have not been approved due to the following reason:\n\n${rejectReason}\n\nKindly review the requirements and re-submit the correct documents at your earliest convenience.\n\nBest regards,\nAdmin Team`;
+      emailMessage = `Dear Dr. ${doctor.name},\n\nWe regret to inform you that your submitted documents have not been approved due to the following reason:\n\n${doctor.documentRejectReason}\n\nKindly review the requirements and re-submit the correct documents at your earliest convenience.\n\nBest regards,\nAdmin Team`;
     } else if (verificationStatus === 'approved') {
       doctor.documentRejectReason = '';
       doctor.isVerified = true;
       doctor.verified = true;
+      doctor.role = 'doctor';
+      doctor.userRole = 'doctor';
       emailSubject = 'Document Verification Successful';
       emailMessage = `Dear Dr. ${doctor.name},\n\nWe are pleased to inform you that your submitted documents have been successfully verified and approved.\n\nYou can now access all features available to verified doctors on our platform.\n\nBest regards,\nAdmin Team`;
     }
@@ -67,3 +64,6 @@ export async function PUT(req: Request) {
     return jsonError(error?.message || 'Internal server error.', 500);
   }
 }
+
+export const POST = PUT;
+export const PATCH = PUT;

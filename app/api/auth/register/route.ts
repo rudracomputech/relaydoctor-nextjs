@@ -36,6 +36,13 @@ export async function POST(req: Request) {
         { upsert: true, new: true }
       );
 
+      const { otp: mobileOTP, expire: mobileExpire } = generateOtp();
+      await OTP.findOneAndUpdate(
+        { mobile, purpose: 'mobile_verification' },
+        { otp: mobileOTP, expireAt: mobileExpire },
+        { upsert: true, new: true }
+      );
+
       await sendEmail({
         to: normalizedEmail,
         subject: 'Email Verification OTP',
@@ -43,18 +50,25 @@ export async function POST(req: Request) {
       });
 
       return jsonSuccess(
-        null,
-        'Already registered but not verified. Email OTP sent. Mobile verification via Firebase.',
-        200
+        { email: normalizedEmail, mobile },
+        'Already registered but not verified. Email OTP sent.',
+        201
       );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const { otp: emailOTP, expire: emailExpire } = generateOtp();
+    const { otp: mobileOTP, expire: mobileExpire } = generateOtp();
 
     await OTP.findOneAndUpdate(
       { email: normalizedEmail, purpose: 'email_verification' },
       { otp: emailOTP, expireAt: emailExpire },
+      { upsert: true, new: true }
+    );
+
+    await OTP.findOneAndUpdate(
+      { mobile, purpose: 'mobile_verification' },
+      { otp: mobileOTP, expireAt: mobileExpire },
       { upsert: true, new: true }
     );
 
@@ -82,8 +96,8 @@ export async function POST(req: Request) {
     });
 
     return jsonSuccess(
-      null,
-      'User registered. Email OTP sent. Mobile verification via Firebase.',
+      { email: normalizedEmail, mobile },
+      'User registered successfully. Email OTP sent.',
       201
     );
   } catch (error: any) {

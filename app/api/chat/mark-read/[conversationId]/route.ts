@@ -33,3 +33,6 @@ export async function PUT(req: Request, context: any) {
     return jsonError(error?.message || 'Server error', 500);
   }
 }
+
+export const POST = PUT;
+export const PATCH = PUT;

@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!conversation && finalReceiverId) {
+    if (!conversation && finalReceiverId && mongoose.Types.ObjectId.isValid(finalReceiverId)) {
       conversation = await Conversation.findOne({
         participants: { $all: [user!._id, finalReceiverId] },
       });
@@ -52,10 +52,16 @@ export async function POST(req: Request) {
     }
 
     if (!conversation) {
-      return jsonError('Conversation not found or receiver ID required', 400);
+      // Auto create a general conversation for this user
+      conversation = await Conversation.create({
+        participants: [user!._id, ...(finalReceiverId ? [finalReceiverId] : [])],
+        messages: [],
+      });
     }
 
-    const receiver = await User.findById(finalReceiverId);
+    const receiver = finalReceiverId && mongoose.Types.ObjectId.isValid(finalReceiverId)
+      ? await User.findById(finalReceiverId)
+      : null;
 
     const newMessage: any = {
       _id: new mongoose.Types.ObjectId(),

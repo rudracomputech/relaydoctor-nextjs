@@ -126,14 +126,44 @@ export async function GET(req: Request) {
 
     const total = await User.countDocuments(filter);
 
+    const formattedDoctors = doctors.map((doc: any) => {
+      const obj = doc.toObject ? doc.toObject() : doc;
+      const isAvailable = obj.availabilityStatus
+        ? !obj.availabilityStatus.toLowerCase().includes('unavailable')
+        : true;
+      const hospitalName = obj.hospital || obj.hospitalAddress || obj.clinicAddress || 'RelayCare Hospital';
+      const experienceStr = `${obj.experienceYears || 5} Years Exp`;
+      const avatar =
+        obj.profileImage ||
+        obj.avatar ||
+        'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=200&q=80';
+
+      return {
+        ...obj,
+        id: obj._id.toString(),
+        specialty: obj.speciality || obj.specialization || 'General Physician',
+        speciality: obj.speciality || obj.specialization || 'General Physician',
+        experience: experienceStr,
+        hospital: hospitalName,
+        clinic: hospitalName,
+        rating: obj.rating || 4.8,
+        reviews: obj.reviewCount || 100,
+        isAvailable,
+        availableOnly: isAvailable,
+        avatarUrl: avatar,
+        profileImage: avatar,
+      };
+    });
+
     return NextResponse.json({
       success: true,
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      count: doctors.length,
-      doctors,
+      count: formattedDoctors.length,
+      doctors: formattedDoctors,
+      data: formattedDoctors,
     });
   } catch (error: any) {
     console.error('Doctor List Error:', error);

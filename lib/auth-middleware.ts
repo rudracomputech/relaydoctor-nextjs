@@ -54,7 +54,7 @@ export async function authenticateRequest(
       };
     }
 
-    const userId = decoded?.userId || decoded?.id;
+    const userId = decoded?.userId || decoded?.id || decoded?._id || decoded?.sub;
     if (!userId) {
       return {
         user: null,
@@ -89,8 +89,9 @@ export async function authenticateRequest(
     }
 
     if (allowedRoles.length > 0) {
-      const userRole = user.userRole || user.role;
-      if (!allowedRoles.includes(userRole)) {
+      const userRole = (user.userRole || user.role || '').toLowerCase();
+      const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
+      if (!normalizedAllowed.includes(userRole) && userRole !== 'admin') {
         return {
           user: null,
           errorResponse: NextResponse.json(

@@ -43,13 +43,16 @@ export async function PATCH(req: Request) {
     await user!.save();
 
     return jsonSuccess(
-      { profileImage: user!.profileImage },
+      { profileImage: user!.profileImage, url: user!.profileImage },
       'Profile image uploaded successfully.',
       200,
-      { profileImage: user!.profileImage }
+      { profileImage: user!.profileImage, url: user!.profileImage }
     );
   } catch (error: any) {
     console.error('Upload Profile Image Error:', error);
     return jsonError(error?.message || 'Server error', 500);
   }
 }
+
+export const POST = PATCH;
+export const PUT = PATCH;

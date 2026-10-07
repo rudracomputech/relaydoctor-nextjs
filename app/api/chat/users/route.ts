@@ -27,7 +27,19 @@ export async function GET(req: Request) {
       'name userRole role profileImage avatar clinicAddress hospitalAddress hospital speciality specialization availabilityStatus'
     );
 
-    return jsonSuccess(users, 'Chat users fetched successfully', 200, { data: users });
+    const formattedUsers = users.map((u: any) => {
+      const obj = u.toObject ? u.toObject() : u;
+      return {
+        ...obj,
+        id: obj._id.toString(),
+        avatarUrl: obj.avatar || obj.profileImage || '',
+      };
+    });
+
+    return jsonSuccess(formattedUsers, 'Chat users fetched successfully', 200, {
+      data: formattedUsers,
+      users: formattedUsers,
+    });
   } catch (error: any) {
     console.error('Get Chat Users Error:', error);
     return jsonError(error?.message || 'Server error', 500);

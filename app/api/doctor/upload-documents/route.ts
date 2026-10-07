@@ -5,16 +5,8 @@ import path from 'path';
 
 export async function PATCH(req: Request) {
   try {
-    const { user, errorResponse } = await authenticateRequest(req, ['doctor']);
+    const { user, errorResponse } = await authenticateRequest(req, ['doctor', 'user', 'admin']);
     if (errorResponse) return errorResponse;
-
-    if (user!.documentVerification === 'pending') {
-      return jsonError('Your previous documents are still pending review. Please wait for admin approval.', 400);
-    }
-
-    if (user!.documentVerification === 'approved') {
-      return jsonError('Your documents are already approved. No need to upload again.', 400);
-    }
 
     const contentType = req.headers.get('content-type') || '';
     let governmentId = '';
@@ -65,6 +57,10 @@ export async function PATCH(req: Request) {
     };
     user!.documentVerification = 'pending';
     user!.documentRejectReason = '';
+    if (user!.role !== 'admin') {
+      user!.role = 'doctor';
+      user!.userRole = 'doctor';
+    }
     await user!.save();
 
     return jsonSuccess({ user }, 'Documents uploaded successfully. Waiting for admin approval.', 200, { user });
@@ -73,3 +69,6 @@ export async function PATCH(req: Request) {
     return jsonError(error?.message || 'Server error', 500);
   }
 }
+
+export const POST = PATCH;
+export const PUT = PATCH;

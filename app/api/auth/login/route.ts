@@ -11,23 +11,31 @@ export async function POST(req: Request) {
   try {
     await connectToDatabase();
     const body = await req.json();
-    const { email, password, userRole = 'doctor' } = body;
+    const { password, userRole = 'doctor' } = body;
+    const credential = (body.email || body.credential || body.mobile || body.phone || '').trim();
 
-    if (!email || !password) {
-      return jsonError('Email and password are required', 400);
+    if (!credential || !password) {
+      return jsonError('Email or mobile and password are required', 400);
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail }).select('+password');
+    const cleanPhone = credential.replace(/\D/g, '');
+    const user = await User.findOne({
+      $or: [
+        { email: credential.toLowerCase() },
+        { mobile: credential },
+        { phone: credential },
+        ...(cleanPhone.length >= 7 ? [{ mobile: cleanPhone }, { phone: cleanPhone }] : []),
+      ],
+    }).select('+password');
 
     if (!user) {
-      return jsonError('User does not exist with this email', 400);
+      return jsonError('User does not exist with this email or mobile', 400);
     }
 
-    const effectiveRole = user.userRole || user.role;
-    if (userRole && effectiveRole !== userRole) {
-      // Allow fallback if user has 'doctor' and asked for 'doctor' or 'admin'
-      if (effectiveRole !== 'admin' && effectiveRole !== userRole) {
+    const effectiveRole = (user.userRole || user.role || 'doctor').toLowerCase();
+    const requestedRole = (userRole || '').toLowerCase();
+    if (requestedRole && requestedRole !== 'all' && effectiveRole !== requestedRole) {
+      if (effectiveRole !== 'admin' && requestedRole !== 'admin') {
         return jsonError(`This account is not registered as ${userRole}`, 403);
       }
     }
@@ -43,6 +51,8 @@ export async function POST(req: Request) {
       {
         userId: user._id.toString(),
         id: user._id.toString(),
+        _id: user._id.toString(),
+        sub: user._id.toString(),
         email: user.email,
         role: effectiveRole,
         userRole: effectiveRole,
@@ -51,27 +61,40 @@ export async function POST(req: Request) {
       { expiresIn: '30d' }
     );
 
+    const userObj = {
+      id: user._id.toString(),
+      _id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      mobile: user.mobile || user.phone || '',
+      phone: user.phone || user.mobile || '',
+      userRole: effectiveRole,
+      role: effectiveRole,
+      verified: user.verified ?? user.isVerified ?? false,
+      isVerified: user.verified ?? user.isVerified ?? false,
+      documentVerification: user.documentVerification ?? null,
+      profileImage: user.profileImage ?? user.avatar ?? '',
+      avatar: user.avatar ?? user.profileImage ?? '',
+      avatarUrl: user.avatar ?? user.profileImage ?? '',
+      speciality: user.speciality ?? user.specialization ?? '',
+      specialty: user.speciality ?? user.specialization ?? '',
+      hospital: user.hospital ?? user.hospitalAddress ?? '',
+      walletBalance: user.walletBalance ?? 0,
+      totalEarnings: user.totalEarnings ?? 0,
+      availabilityStatus: user.availabilityStatus || 'Available',
+    };
+
     return NextResponse.json(
       {
         success: true,
         message: `${effectiveRole} login successful`,
         token,
         jwt: token,
-        user: {
-          id: user._id.toString(),
-          _id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          userRole: effectiveRole,
-          role: effectiveRole,
-          verified: user.verified ?? user.isVerified ?? false,
-          documentVerification: user.documentVerification ?? null,
-          profileImage: user.profileImage ?? user.avatar ?? '',
-          speciality: user.speciality ?? user.specialization ?? '',
-          hospital: user.hospital ?? user.hospitalAddress ?? '',
-          walletBalance: user.walletBalance ?? 0,
-          totalEarnings: user.totalEarnings ?? 0,
+        data: {
+          token,
+          user: userObj,
         },
+        user: userObj,
       },
       { status: 200 }
     );

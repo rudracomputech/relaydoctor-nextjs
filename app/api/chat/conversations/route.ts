@@ -13,7 +13,10 @@ export async function GET(req: Request) {
       .sort({ lastMessageAt: -1, updatedAt: -1 })
       .populate('participants', 'name email speciality specialization avatar profileImage');
 
-    return jsonSuccess(conversations, 'Conversations fetched successfully', 200, { data: conversations });
+    return jsonSuccess(conversations, 'Conversations fetched successfully', 200, {
+      data: conversations,
+      conversations: conversations,
+    });
   } catch (error: any) {
     console.error('Get Conversations Error:', error);
     return jsonError(error?.message || 'Server error', 500);
