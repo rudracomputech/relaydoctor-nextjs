@@ -17,25 +17,35 @@ export async function sendEmail({ to, subject, message, html }: SendEmailOptions
       return { success: true, mocked: true };
     }
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: false,
-      auth: { user, pass },
-    });
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const isGmail = host.includes('gmail');
 
-    await transporter.sendMail({
-      from: user,
+    const transporter = nodemailer.createTransport(
+      isGmail
+        ? {
+            service: 'gmail',
+            auth: { user, pass },
+          }
+        : {
+            host,
+            port: Number(process.env.SMTP_PORT) || 587,
+            secure: Number(process.env.SMTP_PORT) === 465,
+            auth: { user, pass },
+          }
+    );
+
+    const info = await transporter.sendMail({
+      from: `"RelayDoctor" <${user}>`,
       to,
       subject,
       text: message,
       html: html || message,
     });
 
-    return { success: true };
+    console.log(`[sendEmail Success] Sent to ${to}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
   } catch (error: any) {
     console.error('sendEmail Error:', error?.message || error);
-    // Return gracefully so registration/flow doesn't completely crash if SMTP credentials are temporarily invalid
     return { success: false, error: error?.message };
   }
 }
