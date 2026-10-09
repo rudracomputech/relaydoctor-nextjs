@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     await OTP.findOneAndUpdate(
       { email: normalizedEmail, purpose: 'email_verification' },
       { otp, expireAt: expire },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     await sendEmail({

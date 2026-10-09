@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     await OTP.findOneAndUpdate(
       { mobile, purpose: 'mobile_verification' },
       { otp, expireAt: expire },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     console.log(`[SMS OTP MOCK] Mobile: ${mobile} | OTP: ${otp}`);

@@ -33,14 +33,14 @@ export async function POST(req: Request) {
       await OTP.findOneAndUpdate(
         { email: normalizedEmail, purpose: 'email_verification' },
         { otp: emailOTP, expireAt: emailExpire },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       const { otp: mobileOTP, expire: mobileExpire } = generateOtp();
       await OTP.findOneAndUpdate(
         { mobile, purpose: 'mobile_verification' },
         { otp: mobileOTP, expireAt: mobileExpire },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       await sendEmail({
@@ -63,13 +63,13 @@ export async function POST(req: Request) {
     await OTP.findOneAndUpdate(
       { email: normalizedEmail, purpose: 'email_verification' },
       { otp: emailOTP, expireAt: emailExpire },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     await OTP.findOneAndUpdate(
       { mobile, purpose: 'mobile_verification' },
       { otp: mobileOTP, expireAt: mobileExpire },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     await User.create({
